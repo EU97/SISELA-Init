@@ -1,0 +1,12 @@
+# Artefactos comunes a ignorar en proyectos MicroPython/Pymakr
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+
+# VS Code
+.vscode/
+
+# Pymakr
+project.pymakr
+pymakr.d/**
