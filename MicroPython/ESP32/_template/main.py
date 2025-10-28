@@ -7,6 +7,11 @@ from time import ticks_ms, ticks_diff, sleep_ms
 LOOP_HZ = 10        # Frecuencia de iteración del loop principal
 PRINT_EVERY = 1     # Imprime cada N iteraciones (para no saturar)
 
+# (Opcional) Calibración ADC — patrón sugerido
+# AUTO_USE_CALIBRATION = False  # Si True, usa low/high de calibration.json para mapear adc→voltaje
+# CAL_FILE = "calibration.json"
+# Nota: Implementa un modo 5 (wizard) que mida low (GND) y high (3V3) y guarde el archivo.
+
 # Ejemplos de pines (cámbialos en cada práctica)
 # from machine import Pin, ADC, PWM, I2C, UART
 # PIN_LED = 2
@@ -20,6 +25,67 @@ PRINT_EVERY = 1     # Imprime cada N iteraciones (para no saturar)
 
 def now_ms() -> int:
     return ticks_ms()
+
+# (Opcional) Funciones de calibración ADC
+# Descomenta y ajusta si habilitas AUTO_USE_CALIBRATION
+
+# try:
+#     import ujson as json
+# except ImportError:
+#     try:
+#         import json
+#     except Exception:
+#         json = None
+# try:
+#     import os
+# except Exception:
+#     os = None
+#
+# _cal = {"low": 0, "high": (1 << 12) - 1, "enabled": False}
+#
+# def load_calibration():
+#     global _cal
+#     if json is None:
+#         return
+#     try:
+#         if os and hasattr(os, "stat"):
+#             _ = os.stat(CAL_FILE)
+#         with open(CAL_FILE, "r") as f:
+#             data = json.load(f)
+#             if isinstance(data, dict) and "low" in data and "high" in data:
+#                 _cal.update({
+#                     "low": int(data.get("low", 0)),
+#                     "high": int(data.get("high", (1 << 12) - 1)),
+#                     "enabled": bool(data.get("enabled", False)),
+#                 })
+#                 print("[CAL] Cargado: low={}, high={}, enabled={}".format(
+#                     _cal["low"], _cal["high"], _cal["enabled"]))
+#     except Exception as e:
+#         print("[CAL] No se pudo cargar: {}".format(e))
+#
+# def save_calibration():
+#     if json is None:
+#         print("[CAL] JSON no disponible.")
+#         return False
+#     try:
+#         with open(CAL_FILE, "w") as f:
+#             json.dump(_cal, f)
+#         print("[CAL] Guardado en {}".format(CAL_FILE))
+#         return True
+#     except Exception as e:
+#         print("[CAL] Error guardando: {}".format(e))
+#         return False
+#
+# def adc_to_voltage(adc_val, width_bits=12, v_full=3.3):
+#     # Si AUTO_USE_CALIBRATION y calibración válida, mapea [low..high] → [0..v_full]
+#     if AUTO_USE_CALIBRATION and _cal and (_cal.get("high", 0) > _cal.get("low", 0)):
+#         span = float(_cal["high"] - _cal["low"]) or 1.0
+#         ratio = (adc_val - _cal["low"]) / span
+#         ratio = 0.0 if ratio < 0 else (1.0 if ratio > 1 else ratio)
+#         return ratio * v_full
+#     # Mapeo estándar sin calibración
+#     maxcount = (1 << width_bits) - 1
+#     return (adc_val / maxcount) * v_full
 
 # -------- Clases auxiliares (opcional) --------
 

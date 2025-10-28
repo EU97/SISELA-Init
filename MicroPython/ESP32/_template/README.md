@@ -36,6 +36,18 @@ Archivo principal: `main.py`
 2. Sube y ejecuta `main.py`.
 3. Observa la consola y valida el comportamiento esperado.
 
+## Calibración (opcional)
+
+Si tu práctica requiere medición analógica precisa (ADC), considera añadir un modo de calibración y una bandera opcional en `main.py` para usarla cuando exista.
+
+Sugerencia de flujo (idéntico al usado en P3):
+- Modo de calibración por REPL (wizard):
+	1) Conecta la entrada al GND y escribe `ok` + ENTER → mide `low`.
+	2) Conecta la entrada al 3V3 y escribe `ok` + ENTER → mide `high`.
+	3) Guarda `calibration.json` en la placa.
+- Bandera en código: `AUTO_USE_CALIBRATION = False` (por defecto). Si la activas en `True`, la conversión `adc → voltaje` mapea linealmente `[low..high] → [0..Vref]`.
+- Nota: esto corrige offset/ganancia básicos, no la no linealidad completa del ADC.
+
 ## Visualización de datos
 
 Revisa `docs/oscilograma.md` para graficar y analizar datos (si aplica CSV).

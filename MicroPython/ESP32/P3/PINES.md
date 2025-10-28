@@ -36,3 +36,14 @@ Notas:
 - Modo 2: estima la resistencia de la NTC a partir del voltaje de nodo.
 - Modo 3: calcula temperatura en °C usando la ecuación Beta.
 - Modo 4: emite CSV con t,adc,V,R,T para graficar o registrar.
+
+## Calibración rápida del nodo (opcional)
+
+- Nodo de medida: GPIO34 (ADC1).
+- Para ejecutar la guía de calibración (modo 5 en `main.py`):
+	1) Conecta temporalmente el nodo (GPIO34) a GND y escribe `ok` + ENTER en el REPL.
+	2) Conecta el nodo a 3V3 y escribe `ok` + ENTER.
+	3) Se guardará `calibration.json` con `low`/`high` en la placa.
+- La calibración queda deshabilitada por defecto. Para usarla, edita en `main.py`:
+	- Cambia `AUTO_USE_CALIBRATION = True`.
+	- La conversión `adc → voltaje` usará esos extremos (0V↔GND, 3.3V↔3V3).
