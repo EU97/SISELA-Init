@@ -1,0 +1,26 @@
+%% Diagrama de cableado (Mermaid) — P3 NTC
+flowchart LR
+    subgraph Divisor[Divisor con NTC]
+        VCC_S[3V3]
+        R_SER[Rserie 10kΩ]
+        NODE((Nodo))
+        NTC[NTC 10kΩ @25°C]
+        GND_S[GND]
+    end
+
+    subgraph ESP32[ESP32 DevKit]
+        V3V[3V3]
+        GND_E[GND]
+        ADC34[GPIO34 (ADC1)]
+    end
+
+    V3V --- VCC_S
+    VCC_S --- R_SER --- NODE
+    NODE --- NTC --- GND_S
+    GND_E --- GND_S
+    NODE --- ADC34
+
+    classDef note fill:#f5f5f5,stroke:#ddd,color:#333;
+    Note1:::note
+    Note1["GPIO34 es entrada‑solo. Usa atenuación 11dB en el ADC.<br/>Los cálculos de V y T son aproximados sin calibración."]
+    ADC34 --- Note1

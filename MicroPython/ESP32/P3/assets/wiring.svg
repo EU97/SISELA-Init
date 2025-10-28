@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- P3 NTC: 3V3 -> Rseries -> Nodo -> NTC -> GND; Nodo a GPIO34 (ADC1) -->
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="420" viewBox="0 0 920 420">
+  <defs>
+    <style>
+      .box { fill:#fff; stroke:#333; stroke-width:1.5; rx:10; ry:10 }
+      .label { font-family: Segoe UI, Arial, sans-serif; font-size:14px; fill:#222 }
+      .small { font-size:12px; fill:#444 }
+      .wire { stroke:#2a7; stroke-width:2; fill:none }
+      .wire-g { stroke:#555; stroke-width:2; fill:none }
+      .res { fill:#f7f7f7; stroke:#333; stroke-width:1.2 }
+    </style>
+  </defs>
+
+  <!-- ESP32 -->
+  <rect x="600" y="60" width="280" height="220" class="box" />
+  <text x="740" y="85" text-anchor="middle" class="label">ESP32 DevKit</text>
+  <circle cx="600" cy="180" r="5" fill="#27f" />
+  <text x="610" y="185" class="label">GPIO34 (ADC1)</text>
+  <circle cx="880" cy="120" r="5" fill="#2a7" />
+  <text x="870" y="125" text-anchor="end" class="label">3V3</text>
+  <circle cx="880" cy="220" r="5" fill="#555" />
+  <text x="870" y="225" text-anchor="end" class="label">GND</text>
+
+  <!-- Divider -->
+  <rect x="60" y="100" width="340" height="180" class="box" />
+  <text x="230" y="125" text-anchor="middle" class="label">Divisor NTC</text>
+
+  <!-- VCC and series resistor -->
+  <circle cx="100" cy="160" r="5" fill="#2a7" />
+  <text x="110" y="165" class="label">3V3</text>
+  <rect x="150" y="145" width="80" height="30" class="res" />
+  <text x="190" y="165" text-anchor="middle" class="small">Rserie 10kΩ</text>
+
+  <!-- Node -->
+  <circle cx="260" cy="160" r="6" fill="#27f" />
+  <text x="250" y="146" text-anchor="end" class="small">Nodo</text>
+
+  <!-- NTC to GND -->
+  <rect x="240" y="190" width="40" height="60" class="res" />
+  <text x="260" y="220" text-anchor="middle" class="small">NTC</text>
+  <line x1="260" y1="250" x2="260" y2="290" class="wire-g" />
+  <line x1="250" y1="290" x2="270" y2="290" class="wire-g" />
+  <line x1="254" y1="295" x2="266" y2="295" class="wire-g" />
+  <text x="280" y="295" class="small">GND</text>
+
+  <!-- Wiring connections -->
+  <line x1="105" y1="160" x2="150" y2="160" class="wire" />
+  <line x1="230" y1="160" x2="260" y2="160" class="wire" />
+  <line x1="260" y1="160" x2="600" y2="180" class="wire" />
+
+  <!-- Legend notes -->
+  <text x="60" y="340" class="small">Configura ADC en 11dB (~3.3V). GPIO34 es entrada‑solo. Cálculos aproximados sin calibración.</text>
+</svg>
