@@ -1,0 +1,33 @@
+%% Diagrama de cableado (Mermaid) — ESP32 P1
+%% Nota: Este es un diagrama lógico/simbólico, no a escala.
+%% Renderízalo en GitHub o con una extensión Mermaid en VS Code.
+
+graph LR
+  subgraph ESP32
+    GPIO2[(GPIO 2)]
+    GPIO4[(GPIO 4)]
+    GPIO5[(GPIO 5)]
+    GPIO13[(GPIO 13)]
+    GPIO14[(GPIO 14)]
+    GND((GND))
+  end
+
+  %% LEDs con resistencias en serie hacia GND (LED activo-alto)
+  GPIO2 --> R1[R 220Ω] --> D1[LED1]
+  D1 --> GND
+
+  GPIO4 --> R2[R 220Ω] --> D2[LED2]
+  D2 --> GND
+
+  GPIO5 --> R3[R 220Ω] --> D3[LED3]
+  D3 --> GND
+
+  %% Botones con pull-up interno: botón entre GPIO y GND
+  GPIO13 --- SW1((BTN1)) --- GND
+  GPIO14 --- SW2((BTN2)) --- GND
+
+  %% Notas
+  note1["Resistencia 220–330Ω típicamente"]
+  R1 -.-> note1
+  R2 -.-> note1
+  R3 -.-> note1

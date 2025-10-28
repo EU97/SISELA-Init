@@ -21,7 +21,8 @@ Este proyecto prepara el entorno de la Práctica 1 (Fundamentos de MCUs y Entorn
 ```
 P1/
   ├─ boot.py        # Se ejecuta al arranque
-  ├─ main.py        # Programa principal (parpadeo LED + prints)
+  ├─ main.py        # Programa principal (múltiples modos + menú)
+  ├─ PINES.md       # Documento amigable con el pinout por defecto
   ├─ lib/           # Módulos adicionales (vacío por ahora)
   │   └─ .gitkeep
   ├─ pymakr.conf    # Configuración del proyecto Pymakr
@@ -58,8 +59,18 @@ esptool.py --port COM5 --baud 460800 write_flash -z 0x1000 esp32-2024xxxx-v1.22.
 
 ## Qué hace el ejemplo
 
-- `main.py` enciende y apaga el LED (por defecto GPIO 2) cada segundo y escribe "LED ON/OFF" en el REPL.
-- Si tu placa usa otro pin para el LED integrado, edita la constante `LED_PIN` en `main.py`.
+- `main.py` ofrece 4 modos seleccionables por el monitor serial (REPL):
+  1) Blink LED1 (GPIO 2 por defecto)
+  2) Secuencia (chaser) en 3 LEDs (LED1, LED2, LED3)
+  3) Monitor de entradas: lee BTN1/BTN2 (pull-up) y refleja en LED2/LED3
+  4) Integrado: BTN1 alterna patrón (chaser/blink-all) y BTN2 cambia velocidad
+
+- Al iniciar, aparece un menú. Escribe 1/2/3/4 + ENTER. Si no respondes, arranca el modo 4 por defecto.
+- Durante la ejecución, escribe `m` + ENTER para volver al menú.
+- Pines por defecto y esquema rápido: ver `PINES.md` (incluye diagrama Mermaid y `assets/wiring.svg`).
+- Si tu placa usa otros pines, puedes ajustarlos en la cabecera de `main.py`:
+  - LEDs: `LED1_PIN=2`, `LED2_PIN=4`, `LED3_PIN=5`
+  - Botones: `BTN1_PIN=13`, `BTN2_PIN=14` (pull-up, activo LOW)
 
 ## Verificación (criterios de aceptación)
 
