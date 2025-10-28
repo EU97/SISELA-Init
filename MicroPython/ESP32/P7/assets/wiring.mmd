@@ -1,0 +1,24 @@
+%% Diagrama de cableado — P7 (opcional BMP280)
+flowchart LR
+    subgraph ESP32
+      SDA21[GPIO21 (SDA)]
+      SCL22[GPIO22 (SCL)]
+      V33[3.3V]
+      GND0[GND]
+    end
+
+    subgraph BMP[BMP280]
+      BSDA[SDA]
+      BSCL[SCL]
+      BVCC[VCC 3.3V]
+      BGND[GND]
+    end
+
+    SDA21 -- SDA --> BSDA
+    SCL22 -- SCL --> BSCL
+    V33 -- 3.3V --> BVCC
+    GND0 -- GND --> BGND
+
+    classDef note fill:#fff9c4,stroke:#bdb76b,color:#333;
+    N1([Opcional: el modo 1 no requiere hardware]):::note
+    N2([Direcciones BMP280: 0x76/0x77]):::note

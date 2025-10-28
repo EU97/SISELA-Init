@@ -58,9 +58,10 @@ Estas descripciones son intencionalmente generales; los detalles de conexiones/d
 	- Resultados esperados: visualización estable en OLED, diagnóstico con escaneo I²C y demo de refresco.
 	- **MicroPython/ESP32/P6 completado**: OLED SSD1306 (0x3C) + integración opcional con BMP280; 4 modos (dashboard T/P/Alt, mini‑gráfica, scan I²C, demo), drivers `ssd1306.py` y `bmp280.py`, pines/diagramas y documentación.
 
-- P7 · Filtrado y registro de datos
-	- Objetivo: aplicar filtros simples (media móvil, RC digital), detectar eventos y registrar datos para análisis posterior.
-	- Resultados esperados: series temporales comparando crudo vs. filtrado y evaluación del retardo.
+- P7 · Control de actuadores III — Motores a pasos
+	- Objetivo: controlar motores a pasos con A4988/DRV8825 o ULN2003+28BYJ‑48, configurar sentido/velocidad (RPM), realizar movimientos por pasos con rampa simple y homing con fin de carrera.
+	- Resultados esperados: giro estable en ambos sentidos, barrido de velocidad, posicionamiento relativo (N pasos) y referencia a home con endstop.
+	- **MicroPython/ESP32/P7 completado**: Modos (configurar driver, jog, N pasos con rampa, barrido de velocidad, homing, info), drivers `stepper_a4988.py` y `stepper_uln2003.py`, pines/diagramas y guía técnica `STEPPER.md`.
 
 - P8 · Integración y validación del sistema
 	- Objetivo: combinar sensores/actuadores, cerrar ciclo (si aplica), calibrar, validar y documentar lecciones aprendidas.

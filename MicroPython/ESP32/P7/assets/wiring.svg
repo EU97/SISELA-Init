@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="220" viewBox="0 0 700 220">
+  <style>.box{fill:#f7f7f7;stroke:#333;stroke-width:1.2}.title{font:700 14px sans-serif}.pin{font:11px monospace}.wire{stroke-width:2.5}</style>
+  <rect class="box" x="30" y="30" width="220" height="160" rx="6"/>
+  <text class="title" x="140" y="50" text-anchor="middle">ESP32 DevKit</text>
+  <text class="pin" x="45" y="90">GPIO21 (SDA)</text>
+  <text class="pin" x="45" y="110">GPIO22 (SCL)</text>
+  <text class="pin" x="45" y="130">3.3V</text>
+  <text class="pin" x="45" y="150">GND</text>
+
+  <rect class="box" x="320" y="50" width="200" height="120" rx="6"/>
+  <text class="title" x="420" y="70" text-anchor="middle">BMP280 (opcional)</text>
+  <text class="pin" x="335" y="100">SDA</text>
+  <text class="pin" x="335" y="120">SCL</text>
+  <text class="pin" x="335" y="140">VCC 3.3V</text>
+  <text class="pin" x="335" y="160">GND</text>
+
+  <line x1="160" y1="86" x2="320" y2="100" stroke="#1f77b4" class="wire"/>
+  <line x1="160" y1="106" x2="320" y2="120" stroke="#ff7f0e" class="wire"/>
+  <line x1="150" y1="126" x2="320" y2="140" stroke="#2ca02c" class="wire"/>
+  <line x1="150" y1="146" x2="320" y2="160" stroke="#000" class="wire"/>
+</svg>

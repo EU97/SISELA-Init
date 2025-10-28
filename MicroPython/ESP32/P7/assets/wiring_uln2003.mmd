@@ -1,0 +1,31 @@
+%% P7 ULN2003 + 28BYJ-48 wiring
+flowchart LR
+  subgraph ESP32
+    IN1[GPIO26 IN1]
+    IN2[GPIO25 IN2]
+    IN3[GPIO33 IN3]
+    IN4[GPIO32 IN4]
+    GND0[GND]
+  end
+
+  subgraph ULN2003
+    UIN1[IN1]
+    UIN2[IN2]
+    UIN3[IN3]
+    UIN4[IN4]
+    U5V[+5V]
+    UGND[GND]
+    M1[A]
+    M2[B]
+    M3[C]
+    M4[D]
+  end
+
+  IN1 --> UIN1
+  IN2 --> UIN2
+  IN3 --> UIN3
+  IN4 --> UIN4
+  GND0 --> UGND
+
+  classDef note fill:#fff9c4,stroke:#bdb76b,color:#333;
+  N1([Alimenta el motor a 5 V; no desde 3.3 V del ESP32]):::note

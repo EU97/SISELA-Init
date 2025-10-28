@@ -1,0 +1,32 @@
+%% P7 A4988/DRV8825 wiring
+flowchart LR
+  subgraph ESP32
+    STEP[GPIO18 STEP]
+    DIR[GPIO19 DIR]
+    EN[GPIO5 ENABLE]
+    GND0[GND]
+  end
+
+  subgraph A4988
+    ASTEP[STEP]
+    ADIR[DIR]
+    AEN[EN]
+    AMS1[MS1]
+    AMS2[MS2]
+    AMS3[MS3]
+    AVMOT[VMOT +V]
+    AGND[GND]
+    A2A[A2]
+    A2B[A1]
+    B2A[B2]
+    B2B[B1]
+  end
+
+  STEP --> ASTEP
+  DIR --> ADIR
+  EN --> AEN
+  GND0 --> AGND
+
+  classDef note fill:#fff9c4,stroke:#bdb76b,color:#333;
+  N1([VMOT con fuente externa acorde al motor; GND común con ESP32]):::note
+  N2([Ajusta corriente del driver según el motor]):::note
