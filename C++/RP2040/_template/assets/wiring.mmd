@@ -1,0 +1,17 @@
+%% Diagrama de cableado (Mermaid) — C++ RP2040 Plantilla
+flowchart LR
+    subgraph Sensor[Sensor/Actuador]
+        VCC_S[VCC]
+        SIG_S[Señal]
+        GND_S[GND]
+    end
+
+    subgraph RP2040[RP2040 Board]
+        V3V[3V3]
+        GND_E[GND]
+        IOX[GPXX]
+    end
+
+    V3V --- VCC_S
+    GND_E --- GND_S
+    IOX --- SIG_S

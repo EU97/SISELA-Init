@@ -1,0 +1,10 @@
+{
+  // RP2040: ejemplo de configuración Pymakr (ajusta en VS Code)
+  // Copia como "pymakr.conf" y ajusta según tu entorno.
+  "sync_folder": "./",
+  "upload_on_save": false,
+  "main_file": "main.py",
+  "autoconnect": true,
+  "address": "auto",
+  "baudrate": 115200
+}
