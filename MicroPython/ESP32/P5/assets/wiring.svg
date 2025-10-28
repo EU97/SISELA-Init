@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="700" viewBox="0 0 1000 700">
+  <!-- ESP32 Block -->
+  <rect x="50" y="150" width="200" height="250" fill="#ADD8E6" stroke="#000" stroke-width="2"/>
+  <text x="150" y="180" text-anchor="middle" font-weight="bold" font-size="16">ESP32 DevKit</text>
+  
+  <!-- GPIO21 SDA -->
+  <rect x="70" y="210" width="160" height="40" fill="#90EE90" stroke="#000" stroke-width="1"/>
+  <text x="150" y="230" text-anchor="middle" font-size="12">GPIO21 (SDA I2C)</text>
+  <text x="150" y="245" text-anchor="middle" font-size="10">Data bidireccional</text>
+  
+  <!-- GPIO22 SCL -->
+  <rect x="70" y="260" width="160" height="40" fill="#87CEEB" stroke="#000" stroke-width="1"/>
+  <text x="150" y="280" text-anchor="middle" font-size="12">GPIO22 (SCL I2C)</text>
+  <text x="150" y="295" text-anchor="middle" font-size="10">Clock master 400kHz</text>
+  
+  <!-- 3V3 Pin -->
+  <rect x="70" y="310" width="160" height="30" fill="#FFF" stroke="#000" stroke-width="1"/>
+  <text x="150" y="330" text-anchor="middle" font-size="12">3V3</text>
+  
+  <!-- GND Pin -->
+  <rect x="70" y="350" width="160" height="30" fill="#DDD" stroke="#000" stroke-width="1"/>
+  <text x="150" y="370" text-anchor="middle" font-size="12">GND</text>
+  
+  <!-- BMP280 Sensor Block -->
+  <rect x="550" y="150" width="200" height="250" fill="#E6E6FA" stroke="#000" stroke-width="2"/>
+  <text x="650" y="175" text-anchor="middle" font-weight="bold" font-size="16">BMP280 Sensor</text>
+  <text x="650" y="195" text-anchor="middle" font-size="10">(Módulo Breakout)</text>
+  
+  <!-- SDA Pin -->
+  <rect x="570" y="210" width="160" height="30" fill="#FFD700" stroke="#000" stroke-width="1"/>
+  <text x="650" y="230" text-anchor="middle" font-size="12">SDA (Data)</text>
+  
+  <!-- SCL Pin -->
+  <rect x="570" y="250" width="160" height="30" fill="#FFA500" stroke="#000" stroke-width="1"/>
+  <text x="650" y="270" text-anchor="middle" font-size="12">SCL (Clock)</text>
+  
+  <!-- VCC Pin -->
+  <rect x="570" y="290" width="160" height="30" fill="#FFF" stroke="#000" stroke-width="1"/>
+  <text x="650" y="310" text-anchor="middle" font-size="12">VCC (3.3V)</text>
+  
+  <!-- GND Pin -->
+  <rect x="570" y="330" width="160" height="30" fill="#DDD" stroke="#000" stroke-width="1"/>
+  <text x="650" y="350" text-anchor="middle" font-size="12">GND</text>
+  
+  <!-- SDO/CSB Pins (optional) -->
+  <rect x="570" y="370" width="75" height="20" fill="#EEE" stroke="#000" stroke-width="0.5"/>
+  <text x="607" y="384" text-anchor="middle" font-size="9">SDO</text>
+  <rect x="655" y="370" width="75" height="20" fill="#EEE" stroke="#000" stroke-width="0.5"/>
+  <text x="692" y="384" text-anchor="middle" font-size="9">CSB</text>
+  
+  <!-- Connections -->
+  <!-- SDA bidirectional -->
+  <line x1="230" y1="230" x2="570" y2="225" stroke="#0000FF" stroke-width="2"/>
+  <text x="400" y="220" text-anchor="middle" font-size="10" fill="#0000FF">SDA (bidireccional)</text>
+  
+  <!-- SCL clock -->
+  <line x1="230" y1="280" x2="570" y2="265" stroke="#FF8C00" stroke-width="2"/>
+  <text x="400" y="260" text-anchor="middle" font-size="10" fill="#FF8C00">SCL (400kHz)</text>
+  
+  <!-- 3V3 to VCC -->
+  <line x1="230" y1="325" x2="570" y2="305" stroke="#FF0000" stroke-width="2"/>
+  <text x="400" y="300" text-anchor="middle" font-size="10" fill="#FF0000">3.3V</text>
+  
+  <!-- GND to GND -->
+  <line x1="230" y1="365" x2="570" y2="345" stroke="#000" stroke-width="2"/>
+  <text x="400" y="360" text-anchor="middle" font-size="10">GND</text>
+  
+  <!-- Pull-up resistors (dashed box) -->
+  <rect x="350" y="100" width="120" height="80" fill="#FFE4E1" stroke="#FF69B4" stroke-width="2" stroke-dasharray="5,5"/>
+  <text x="410" y="120" text-anchor="middle" font-size="11" font-weight="bold">Pull-ups I2C</text>
+  <text x="410" y="138" text-anchor="middle" font-size="10">(en módulo típico)</text>
+  <text x="410" y="156" text-anchor="middle" font-size="10">R_SDA: 4.7kΩ → 3V3</text>
+  <text x="410" y="172" text-anchor="middle" font-size="10">R_SCL: 4.7kΩ → 3V3</text>
+  
+  <!-- Notes -->
+  <rect x="50" y="450" width="220" height="70" fill="#FFF9DB" stroke="#FFD43B" stroke-width="2"/>
+  <text x="160" y="475" text-anchor="middle" font-size="11" font-weight="bold">⚠️ NOTA 1:</text>
+  <text x="160" y="495" text-anchor="middle" font-size="10">I2C requiere pull-ups</text>
+  <text x="160" y="510" text-anchor="middle" font-size="10">Módulos suelen incluirlas</text>
+  
+  <rect x="290" y="450" width="220" height="70" fill="#FFE8CC" stroke="#FD7E14" stroke-width="2"/>
+  <text x="400" y="475" text-anchor="middle" font-size="11" font-weight="bold">⚠️ NOTA 2:</text>
+  <text x="400" y="495" text-anchor="middle" font-size="10">Dirección default: 0x76</text>
+  <text x="400" y="510" text-anchor="middle" font-size="10">SDO→VCC cambia a 0x77</text>
+  
+  <rect x="530" y="450" width="220" height="70" fill="#D3F9D8" stroke="#51CF66" stroke-width="2"/>
+  <text x="640" y="475" text-anchor="middle" font-size="11" font-weight="bold">✓ NOTA 3:</text>
+  <text x="640" y="495" text-anchor="middle" font-size="10">Frecuencia: 400 kHz</text>
+  <text x="640" y="510" text-anchor="middle" font-size="10">Compatible hasta 1 MHz</text>
+  
+  <rect x="770" y="450" width="210" height="70" fill="#D0EBFF" stroke="#339AF0" stroke-width="2"/>
+  <text x="875" y="475" text-anchor="middle" font-size="11" font-weight="bold">✓ NOTA 4:</text>
+  <text x="875" y="495" text-anchor="middle" font-size="10">Calibración automática</text>
+  <text x="875" y="510" text-anchor="middle" font-size="10">12 coef. 0x88–0xA1</text>
+  
+  <!-- I2C Protocol note -->
+  <rect x="50" y="550" width="930" height="120" fill="#F0F8FF" stroke="#4682B4" stroke-width="2"/>
+  <text x="515" y="575" text-anchor="middle" font-size="13" font-weight="bold">Protocolo I2C: Comunicación Serial Síncrona</text>
+  <text x="515" y="600" text-anchor="middle" font-size="11">START → Dirección (0x76/0x77) → Registro → RESTART → Read Data → STOP</text>
+  <text x="515" y="620" text-anchor="middle" font-size="10">SDA/SCL open-drain con pull-ups → Múltiples dispositivos en mismo bus (direcciones únicas)</text>
+  <text x="515" y="640" text-anchor="middle" font-size="10">Master (ESP32) genera SCL → Esclavo (BMP280) responde con ACK → Transferencia de datos</text>
+  <text x="515" y="660" text-anchor="middle" font-size="10">Velocidades: 100kHz (Standard), 400kHz (Fast), 1MHz (Fast+)</text>
+</svg>

@@ -1,0 +1,52 @@
+flowchart LR
+    subgraph ESP32["ESP32 DevKit"]
+        GPIO21["GPIO21<br/>(SDA I2C)<br/>Data bidireccional"]
+        GPIO22["GPIO22<br/>(SCL I2C)<br/>Clock master"]
+        VCC["3V3"]
+        GND_ESP["GND"]
+    end
+    
+    subgraph BMP280["BMP280 Sensor<br/>Módulo Breakout"]
+        SDA_PIN["SDA<br/>(Data)"]
+        SCL_PIN["SCL<br/>(Clock)"]
+        VCC_PIN["VCC<br/>(3.3V)"]
+        GND_PIN["GND"]
+        SDO_PIN["SDO<br/>(Addr select)"]
+        CSB_PIN["CSB<br/>(Mode select)"]
+    end
+    
+    subgraph PullUps["Pull-ups I2C<br/>(usualmente en módulo)"]
+        R_SDA["4.7kΩ"]
+        R_SCL["4.7kΩ"]
+    end
+    
+    GPIO21 <-->|"SDA<br/>Bidireccional"| SDA_PIN
+    GPIO22 -->|"SCL<br/>Clock 400kHz"| SCL_PIN
+    VCC -->|"3.3V"| VCC_PIN
+    GND_ESP -->|"GND"| GND_PIN
+    
+    R_SDA -->|"Pull-up"| SDA_PIN
+    R_SCL -->|"Pull-up"| SCL_PIN
+    R_SDA -.->|"a 3V3"| VCC
+    R_SCL -.->|"a 3V3"| VCC
+    
+    SDO_PIN -.->|"GND → 0x76<br/>VCC → 0x77"| GND_ESP
+    CSB_PIN -.->|"VCC → I2C<br/>(pull-up interno)"| VCC
+    
+    style GPIO21 fill:#90EE90
+    style GPIO22 fill:#87CEEB
+    style SDA_PIN fill:#FFD700
+    style SCL_PIN fill:#FFA500
+    style PullUps fill:#FFE4E1,stroke-dasharray: 5 5
+    style BMP280 fill:#E6E6FA
+    style ESP32 fill:#ADD8E6
+    
+    NOTE1["⚠️ I2C requiere pull-ups<br/>Módulos suelen incluirlas"]
+    NOTE2["⚠️ Dirección por defecto: 0x76<br/>SDO a VCC cambia a 0x77"]
+    NOTE3["✓ Frecuencia: 400 kHz (Fast Mode)<br/>Compatible hasta 1 MHz"]
+    NOTE4["✓ Calibración automática<br/>12 coef. en registros 0x88–0xA1"]
+    
+    style NOTE1 fill:#FFF9DB,stroke:#FFD43B
+    style NOTE2 fill:#FFE8CC,stroke:#FD7E14
+    style NOTE3 fill:#D3F9D8,stroke:#51CF66
+    style NOTE4 fill:#D0EBFF,stroke:#339AF0
