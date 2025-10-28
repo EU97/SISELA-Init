@@ -29,21 +29,24 @@ Nota: si ves referencias antiguas a “Mircorpython/”, se están migrando a `M
 
 Estas descripciones son intencionalmente generales; los detalles de conexiones/diagramas se agregarán cuando entremos a cada implementación.
 
-- P1 · Entradas/Salidas digitales y temporización
-	- Objetivo: dominar GPIO, lectura de botones con anti‑rebote, salidas digitales y temporización (parpadeo, PWM básico para LED/servo).
-	- Resultados esperados: manejo confiable de señales digitales y generación de patrones temporales.
+- P1 · Entradas/Salidas digitales y temporización con menú interactivo
+	- Objetivo: dominar GPIO, lectura de botones con anti‑rebote, salidas digitales y temporización (parpadeo, secuencias LED, control con entradas).
+	- Resultados esperados: manejo confiable de señales digitales y generación de patrones temporales con menú REPL.
+	- **MicroPython/ESP32/P1 completado**: 4 modos (blink, chaser, monitor, integrado), menú con timeout y comando 'm', documentación de pines con diagramas Mermaid/SVG.
 
 - P2 · Adquisición analógica (ADC) con sensor de posición
 	- Objetivo: configurar el ADC, muestrear una señal analógica y convertirla a unidades físicas (posición/ángulo) con calibración simple.
 	- Resultados esperados: curva entrada‑salida y verificación de resolución/ruido del ADC.
 
-- P3 · Medición de temperatura con NTC
-	- Objetivo: medir temperatura usando un divisor resistivo con NTC, linealizar o tabular la conversión y caracterizar la sensibilidad.
+- P3 · Medición de temperatura con NTC y Beta equation
+	- Objetivo: medir temperatura usando un divisor resistivo con NTC, aplicar ecuación de Steinhart-Hart/Beta, caracterizar sensibilidad y calibración ADC opcional.
 	- Resultados esperados: tabla/ecuación T(ADC), comparación con referencia y análisis de error.
+	- **MicroPython/ESP32/P3 completado**: Incluye 5 modos (raw ADC, voltaje, resistencia, temperatura, calibración wizard), documentación de calibración ADC y diagramas.
 
-- P4 · Medición de presión con ADC y acondicionamiento opcional
-	- Objetivo: leer un transductor de presión, aplicar acondicionamiento (offset/ganancia/filtrado) y validar rango operativo.
-	- Resultados esperados: gráfica presión vs. lectura digital y criterios de saturación/ruido.
+- P4 · Medición de presión con sensor MPX5500DP (20–520 kPa)
+	- Objetivo: leer un transductor de presión piezoresistivo, aplicar conversión ADC→kPa, calibración opcional y visualización en tiempo real.
+	- Resultados esperados: gráfica presión vs. tiempo, telemetría CSV y validación con presión atmosférica (~101 kPa).
+	- **MicroPython/ESP32/P4 completado**: Incluye modo CSV, calibración ADC, herramientas Python (live_plot.py), documentación técnica completa del sensor y diagramas de conexión.
 
 - P5 · Sensores digitales por bus (I²C/SPI)
 	- Objetivo: integrar un sensor digital (p. ej., barómetro/IMU) por I²C o SPI, leer registros y verificar calibraciones internas.

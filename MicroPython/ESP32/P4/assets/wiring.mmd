@@ -1,0 +1,44 @@
+flowchart LR
+    subgraph ESP32["ESP32 DevKit"]
+        GPIO34["GPIO34<br/>(ADC1_CH6)<br/>12bit, ATTN_11DB"]
+        VCC["3V3"]
+        GND_ESP["GND"]
+    end
+    
+    subgraph MPX5500DP["MPX5500DP Sensor<br/>SOT-223 Package"]
+        PIN1["Pin 1: GND"]
+        PIN2["Pin 2: VS<br/>(4.75-5.25V)"]
+        PIN3["Pin 3: Vout<br/>(0.66-3.3V)"]
+    end
+    
+    subgraph Optional["Circuito Opcional<br/>(para VS=5V)"]
+        R1["R1: 10kΩ"]
+        R2["R2: 10kΩ"]
+        DIV["Divisor<br/>5V → 2.5V"]
+    end
+    
+    VCC -->|"3.3V"| PIN2
+    GND_ESP -->|"GND"| PIN1
+    PIN3 -->|"Vout<br/>0.66-3.3V"| GPIO34
+    
+    PIN2 -.->|"Alternativa:<br/>5V regulado"| DIV
+    PIN3 -.->|"Con VS=5V<br/>usar divisor"| R1
+    R1 -.-> R2
+    R2 -.->|"GND"| GND_ESP
+    R1 -.->|"2.5V máx"| GPIO34
+    
+    style GPIO34 fill:#90EE90
+    style PIN3 fill:#FFD700
+    style Optional fill:#E6E6FA,stroke-dasharray: 5 5
+    style MPX5500DP fill:#FFE4B5
+    style ESP32 fill:#ADD8E6
+    
+    classDef alert fill:#FF6B6B,stroke:#C92A2A,color:#FFF
+    
+    NOTE1["⚠️ GPIO34 es INPUT-ONLY<br/>No puede ser salida digital"]
+    NOTE2["⚠️ MPX5500DP óptimo a VS=5V<br/>Con VS=3.3V: 66% sensibilidad"]
+    NOTE3["✓ ADC promedia 50 muestras<br/>Reduce ruido ~7x"]
+    
+    style NOTE1 fill:#FFF9DB,stroke:#FFD43B
+    style NOTE2 fill:#FFE8CC,stroke:#FD7E14
+    style NOTE3 fill:#D3F9D8,stroke:#51CF66
