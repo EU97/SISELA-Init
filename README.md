@@ -51,10 +51,12 @@ Estas descripciones son intencionalmente generales; los detalles de conexiones/d
 - P5 · Sensores digitales por bus (I²C/SPI)
 	- Objetivo: integrar un sensor digital (p. ej., barómetro/IMU) por I²C o SPI, leer registros y verificar calibraciones internas.
 	- Resultados esperados: lectura estable de magnitudes y comprensión del protocolo y temporizaciones.
+	- **MicroPython/ESP32/P5 completado**: BMP280 por I²C (0x76/0x77), lectura compensada de temperatura/presión, cálculo de altitud, modo CSV continuo, herramienta de graficación en PC y documentación técnica (BMP280.md).
 
-- P6 · Comunicación serie y telemetría básica
-	- Objetivo: enviar/recibir datos por UART/USB, definir un formato de trama y visualizar en una PC (consola o plotter).
-	- Resultados esperados: telemetría en tiempo real y logs en CSV.
+- P6 · Interfaz local con OLED SSD1306 (I²C)
+	- Objetivo: mostrar datos en una pantalla OLED 128×64 por I²C y componer una interfaz simple (dashboard y mini‑gráficas); compartir el bus con un sensor digital.
+	- Resultados esperados: visualización estable en OLED, diagnóstico con escaneo I²C y demo de refresco.
+	- **MicroPython/ESP32/P6 completado**: OLED SSD1306 (0x3C) + integración opcional con BMP280; 4 modos (dashboard T/P/Alt, mini‑gráfica, scan I²C, demo), drivers `ssd1306.py` y `bmp280.py`, pines/diagramas y documentación.
 
 - P7 · Filtrado y registro de datos
 	- Objetivo: aplicar filtros simples (media móvil, RC digital), detectar eventos y registrar datos para análisis posterior.
