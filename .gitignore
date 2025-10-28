@@ -1,0 +1,40 @@
+# Ignore PDFs folder
+PDFs/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+
+# Python / MicroPython
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+.python-version
+.mypy_cache/
+.pytest_cache/
+
+# C/C++ build artifacts
+build/
+dist/
+*.o
+*.obj
+*.elf
+*.bin
+*.map
+*.hex
+*.uf2
+.pio/
+.vs/
+
+# Node (just in case)
+node_modules/
+
+# Coverage / misc
+.coverage
+coverage/
