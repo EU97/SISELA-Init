@@ -40,7 +40,8 @@ import numpy as np
 class PressurePlotter:
     """Graficador en tiempo real de datos de presión."""
     
-    def __init__(self, port, baudrate=115200, window_size=30, save_file=None):
+    def __init__(self, port, baudrate=115200, window_size=30, save_file=None,
+                 auto_start=False, menu_choice='4', stop_on_exit=False, no_reset=False):
         """
         Inicializa el graficador.
         
@@ -54,6 +55,10 @@ class PressurePlotter:
         self.baudrate = baudrate
         self.window_size = window_size
         self.save_file = save_file
+        self.auto_start = auto_start
+        self.menu_choice = str(menu_choice or '4')
+        self.stop_on_exit = stop_on_exit
+        self.no_reset = no_reset
         
         # Buffers de datos (deque con tamaño fijo)
         self.max_points = window_size * 10  # Asume 10 Hz
@@ -70,13 +75,48 @@ class PressurePlotter:
     def open_serial(self):
         """Abre el puerto serie."""
         try:
+            # Abrir puerto
             self.ser = serial.Serial(self.port, self.baudrate, timeout=1)
+            # Opcional: intentar evitar resets por líneas de control
+            try:
+                if self.no_reset:
+                    self.ser.dtr = False
+                    self.ser.rts = False
+            except Exception:
+                pass
             print(f"[OK] Conectado a {self.port} @ {self.baudrate} baud")
             time.sleep(2)  # Espera estabilización
+            # Limpia buffers
+            try:
+                self.ser.reset_input_buffer()
+                self.ser.reset_output_buffer()
+            except Exception:
+                pass
+
+            # Intentar entrar al modo 4 (CSV) automáticamente
+            if self.auto_start:
+                self._try_enter_mode_csv()
             return True
         except serial.SerialException as e:
             print(f"[Error] No se pudo abrir {self.port}: {e}")
             return False
+
+    def _try_enter_mode_csv(self):
+        """Envía la selección de menú para entrar al modo CSV (opción '4')."""
+        # Enviar algunos saltos de línea para sincronizar y luego la opción
+        try:
+            for _ in range(2):
+                self.ser.write(b"\r\n")
+                self.ser.flush()
+                time.sleep(0.1)
+            cmd = (self.menu_choice + "\r\n").encode()
+            # Intento múltiple por si el programa está en timeout/reimpresión de menú
+            for _ in range(3):
+                self.ser.write(cmd)
+                self.ser.flush()
+                time.sleep(0.3)
+        except Exception as e:
+            print(f"[Aviso] No se pudo enviar selección de menú automáticamente: {e}")
     
     def open_csv_file(self):
         """Abre archivo CSV para guardar datos (si save_file está definido)."""
@@ -219,6 +259,14 @@ class PressurePlotter:
         except KeyboardInterrupt:
             print("\n[Interrumpido] Cerrando...")
         finally:
+            # Intentar salir del modo en el dispositivo
+            if self.stop_on_exit and self.ser:
+                try:
+                    self.ser.write(b"m\r\n")
+                    self.ser.flush()
+                    time.sleep(0.1)
+                except Exception:
+                    pass
             if self.ser and self.ser.is_open:
                 self.ser.close()
             if self.csv_file:
@@ -251,6 +299,10 @@ Ejemplos:
   python live_plot.py --port COM5 --baud 115200
   python live_plot.py --port /dev/ttyUSB0 --window 60
   python live_plot.py --port COM5 --save presion_data.csv
+  python live_plot.py --no-auto-start  # Desactivar auto-inicio si ya estás en modo 4
+
+Por defecto, el script entra automáticamente al modo 4 (CSV) del programa 
+en el ESP32 y regresa al menú al salir.
         """
     )
     
@@ -281,6 +333,41 @@ Ejemplos:
         default=None,
         help='Guardar datos en archivo CSV (opcional).'
     )
+    parser.add_argument(
+        '--auto-start',
+        action='store_true',
+        default=True,
+        help='Intentar entrar automáticamente al modo 4 (CSV) del programa principal al conectar (default: True).'
+    )
+    parser.add_argument(
+        '--no-auto-start',
+        dest='auto_start',
+        action='store_false',
+        help='Desactivar entrada automática al modo 4; espera que ya estés en el modo correcto.'
+    )
+    parser.add_argument(
+        '--menu-choice',
+        type=str,
+        default='4',
+        help='Opción de menú a enviar al conectar cuando --auto-start está activo (default: 4).'
+    )
+    parser.add_argument(
+        '--stop-on-exit',
+        action='store_true',
+        default=True,
+        help="Enviar 'm' al salir para regresar al menú en el dispositivo (default: True)."
+    )
+    parser.add_argument(
+        '--no-stop-on-exit',
+        dest='stop_on_exit',
+        action='store_false',
+        help='No enviar comando de salida al cerrar.'
+    )
+    parser.add_argument(
+        '--no-reset',
+        action='store_true',
+        help='Intenta evitar reset por DTR/RTS al abrir el puerto (establece DTR/RTS en False).'
+    )
     
     args = parser.parse_args()
     
@@ -300,7 +387,11 @@ Ejemplos:
         port=port,
         baudrate=args.baud,
         window_size=args.window,
-        save_file=args.save
+        save_file=args.save,
+        auto_start=args.auto_start,
+        menu_choice=args.menu_choice,
+        stop_on_exit=args.stop_on_exit,
+        no_reset=args.no_reset
     )
     
     plotter.run()
