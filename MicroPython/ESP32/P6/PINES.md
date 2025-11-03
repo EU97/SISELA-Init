@@ -1,19 +1,21 @@
-# PINES — P6 OLED SSD1306 (I2C)
+# PINES — P6 Conmutación de potencia (PWM + transistor)
 
-Conexiones principales en ESP32 (DevKit):
+Conexiones principales en ESP32 (DevKit) y etapa de potencia:
 
-- SDA → GPIO21
-- SCL → GPIO22
-- VCC → 3.3 V
-- GND → GND
+- GPIO18 → Resistencia 220 Ω → compuerta/base del transistor (señal PWM)
+- GND (ESP32) → GND de la fuente externa (GND común obligatorio)
+- GPIO34 (opcional) → Potenciómetro (cursor). Extremos a 3V3 y GND.
 
-Direcciones I2C típicas:
+Etapa de potencia típica (bajo lado, MOSFET canal N):
 
-- OLED SSD1306: 0x3C
-- BMP280 (opcional): 0x76 o 0x77
+- Drenador (D) → extremo negativo de la carga
+- Extremo positivo de la carga → +V (5–12 V)
+- Fuente (S) → GND común
+- Diodo flyback (1N5819/1N4007) en paralelo con la carga (cátodo a +V, ánodo al drenador) para cargas inductivas
 
-Notas:
+Notas y seguridad:
 
-- La mayoría de módulos OLED incluyen resistencias de pull‑up en SDA/SCL. Si no, añade ~4.7 kΩ a 3.3 V.
-- OLED y BMP280 pueden compartir el bus I2C (conectar en paralelo SDA/SCL). Asegura GND común.
-- Mantén cables cortos para fiabilidad a 400 kHz.
+- Nunca alimentes la carga desde el 3V3 del ESP32. Usa fuente externa adecuada.
+- Imprescindible GND común entre ESP32 y la fuente externa.
+- Para MOSFET, usa uno de compuerta lógica (ej. AO3400, IRLZ44N). Para BJT, añade resistencia base y calcula corriente.
+- Ajusta la frecuencia PWM según la carga (500 Hz – 2 kHz suele funcionar bien).

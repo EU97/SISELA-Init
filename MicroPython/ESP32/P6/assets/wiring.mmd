@@ -1,36 +1,24 @@
-%% Diagrama de cableado — P6 OLED SSD1306 (+ BMP280 opcional)
-flowchart LR
-    subgraph ESP32
-      SDA21[GPIO21 (SDA)]
-      SCL22[GPIO22 (SCL)]
-      V33[3.3V]
-      GND0[GND]
-    end
+%% Diagrama de cableado — P6 Conmutación de potencia (PWM + transistor)
+flowchart TB
+  subgraph ESP32
+    PWM18[GPIO18 (PWM)] --> Rg[Res 220 Ω]
+    ADC34[GPIO34 (ADC) opcional]
+    GNDuC[GND]
+  end
 
-    subgraph OLED[OLED SSD1306 128x64]
-      OSDA[SDA]
-      OSCL[SCL]
-      OVCC[VCC 3.3V]
-      OGND[GND]
-    end
+  Rg --> G[Gate/Base]
+  D[Drain/Colector] --> LOAD[Carga]
+  LOAD --> VPLUS[+V (5–12 V)]
+  S[Source/Emisor] --> GNDp[GND fuente]
+  GNDuC --- GNDp
 
-    subgraph BMP[BMP280 (opcional)]
-      BSDA[SDA]
-      BSCL[SCL]
-      BVCC[VCC 3.3V]
-      BGND[GND]
-    end
+  %% Diodo flyback para cargas inductivas
+  VPLUS ==|>|== D
+  note right of D: Diodo flyback (1N5819/1N4007) \n cátodo a +V, ánodo al drenador/colector
 
-    SDA21 -- SDA --> OSDA
-    SCL22 -- SCL --> OSCL
-    V33 -- 3.3V --> OVCC
-    GND0 -- GND --> OGND
+  classDef opt fill:#eef,stroke:#99f,color:#000;
+  ADC34:::opt
 
-    SDA21 -- SDA --> BSDA
-    SCL22 -- SCL --> BSCL
-    V33 -- 3.3V --> BVCC
-    GND0 -- GND --> BGND
-
-    classDef note fill:#fff9c4,stroke:#bdb76b,color:#333;
-    N1([Ambos dispositivos comparten el bus I2C (SDA/SCL)]):::note
-    N2([Direcciones típicas: OLED 0x3C, BMP280 0x76/0x77]):::note
+  classDef note fill:#fff9c4,stroke:#bdb76b,color:#333;
+  N1([GND común entre ESP32 y la fuente externa es obligatorio]):::note
+  N2([No alimentes la carga desde 3V3 del ESP32]):::note
