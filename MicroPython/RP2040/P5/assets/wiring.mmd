@@ -1,0 +1,50 @@
+flowchart LR
+    subgraph RP2040[Raspberry Pi Pico RP2040]
+        GP18[GP18\nPWM1 A\n50 Hz]
+        GND1[GND]
+        VSYS[VSYS\n5V del USB]
+        GP26[GP26\nADC0 opcional]
+    end
+
+    subgraph SERVO
+        S_SIG[Señal (amarillo/blanco)]
+        S_VCC[VCC 5V (rojo)]
+        S_GND[GND (negro/marrón)]
+    end
+
+    subgraph FUENTE5V[Fuente 5V externa opcional]
+        V5[+5V]
+        GND5[GND]
+    end
+
+    GP18 --> S_SIG
+    GND1 --- S_GND
+
+    %% Alimentación: VSYS o externa
+    VSYS -.- S_VCC
+    V5 -.-> S_VCC
+    GND5 --- S_GND
+    GND5 --- GND1
+
+    GP26 --> POT_CURSOR
+
+    %% Potenciómetro opcional
+    subgraph POT[Potenciómetro 10kΩ]
+        POT_VCC[3V3]
+        POT_GND[GND]
+        POT_CURSOR[Cursor]
+    end
+
+    POT_VCC --- 3V3_NOTE[3V3 del RP2040]
+    POT_GND --- GND1
+    POT_CURSOR -. señal .-> GP26
+
+    %% Notas
+    note1:::note --- GP18
+    note2:::note --- VSYS
+    note3:::note --- GP26
+
+    classDef note fill:#fff5b1,stroke:#b3a200,color:#333;
+    note1["GP18: PWM1 A.\nJitter ~1 ns (10× mejor que ESP32)."]
+    note2["🔄 VSYS suficiente para servos pequeños:\n- SG90/MG90S: hasta 250 mA ✅\n- MG996R: requiere fuente externa ❌"]
+    note3["GP26: ADC0 16-bit.\n16× más suave que ESP32 ADC 12-bit."]
