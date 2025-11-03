@@ -1,6 +1,6 @@
-# Práctica P5 — MicroPython · RP2040
+# Práctica 5 — En preparación (RP2040)
 
-Este README se completará más adelante con la descripción detallada de la práctica.
+Esta práctica se regenerará a partir del manual. Objetivo previsto: control PWM de servomotores con `machine.PWM` en RP2040 (50 Hz), siguiendo la estructura de ESP32/P5.
 
 ## Objetivo
 
@@ -22,11 +22,12 @@ Este README se completará más adelante con la descripción detallada de la pr�
 2. Desarrollo (boot.py / main.py)
 3. Pruebas
 
-## Archivos
+## Archivos (previstos)
 
 - `boot.py`
 - `main.py`
-- Notas adicionales
+- `lib/servo.py` (si aplica)
+- `PINES.md`, `assets/wiring.mmd`, `docs/oscilograma.md`
 
 ## Verificación
 

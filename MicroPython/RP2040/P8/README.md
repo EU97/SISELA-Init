@@ -1,6 +1,6 @@
-# Práctica P8 — MicroPython · RP2040
+# Práctica 8 — En preparación (RP2040)
 
-Este README se completará más adelante con la descripción detallada de la práctica.
+Este directorio ha sido limpiado para volver a generarse a partir del manual oficial.
 
 ## Objetivo
 

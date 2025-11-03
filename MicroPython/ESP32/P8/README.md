@@ -1,41 +1,8 @@
-# Práctica P8 — MicroPython · ESP32
+# Práctica 8 — En preparación
 
-Este README se completará más adelante con la descripción detallada de la práctica.
+Este directorio ha sido limpiado para volver a generarse a partir del manual oficial.
 
-## Objetivo
+- Estructura, código y herramientas se crearán siguiendo el patrón de P4.
+- Por ahora, no hay código funcional en esta práctica.
 
-> Describe el objetivo principal de la práctica.
-
-## Requisitos previos
-
-- Firmware y herramientas (Thonny, rshell, pymakr, etc.)
-- Versión de MicroPython
-
-## Material y conexiones
-
-- Lista de componentes
-- Esquema/conexiones
-
-## Pasos
-
-1. Preparación del entorno
-2. Desarrollo (boot.py / main.py)
-3. Pruebas
-
-## Archivos
-
-- `boot.py`
-- `main.py`
-- Notas adicionales
-
-## Verificación
-
-> Qué debe observarse para considerar la práctica como aprobada.
-
-## Preguntas de reflexión
-
-- …
-
-## Recursos
-
-- …
+> Nota: No elimines esta carpeta. Se usará como base para la nueva práctica.
