@@ -1,5 +1,3 @@
-# Práctica 6 — OLED SSD1306 (I2C)
-# ESP32 + MicroPython
 """
 Práctica 6 — Conmutación de potencia por PWM (transistor)
 Boot banner mínimo.

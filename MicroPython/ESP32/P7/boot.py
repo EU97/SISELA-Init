@@ -1,2 +1,6 @@
-# Práctica 7 — Filtrado y registro (ESP32 + MicroPython)
-print("[BOOT] P7 lista. Ejecutando main.py…")
+"""
+Práctica 7 — Control de Motores a Pasos
+Boot banner mínimo.
+"""
+
+print("[BOOT] P7 — Motores a Pasos (A4988/DRV8825 y ULN2003). Ejecutando main.py…")
