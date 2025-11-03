@@ -1,0 +1,49 @@
+flowchart LR
+    subgraph RP2040["Raspberry Pi Pico (RP2040)"]
+        GP26["GP26<br/>(ADC0)<br/>16bit, 0-3.3V"]
+        VCC["3V3(OUT)"]
+        GND_RP["GND"]
+        VSYS["VSYS<br/>(5V USB)"]
+    end
+    
+    subgraph MPX5500DP["MPX5500DP Sensor<br/>SOT-223 Package"]
+        PIN1["Pin 1: GND"]
+        PIN2["Pin 2: VS<br/>(4.75-5.25V)"]
+        PIN3["Pin 3: Vout<br/>(0.66-3.3V)"]
+    end
+    
+    subgraph Optional["Circuito Opcional<br/>(para VS=5V)"]
+        R1["R1: 10kΩ"]
+        R2["R2: 10kΩ"]
+        DIV["Divisor<br/>5V → 2.5V"]
+    end
+    
+    VCC -->|"3.3V"| PIN2
+    GND_RP -->|"GND"| PIN1
+    PIN3 -->|"Vout<br/>0.66-3.3V"| GP26
+    
+    VSYS -.->|"Alternativa:<br/>5V desde USB"| DIV
+    PIN2 -.->|"Con VSYS"| DIV
+    PIN3 -.->|"Con VS=5V<br/>usar divisor"| R1
+    R1 -.-> R2
+    R2 -.->|"GND"| GND_RP
+    R1 -.->|"2.5V máx"| GP26
+    
+    style GP26 fill:#90EE90
+    style PIN3 fill:#FFD700
+    style Optional fill:#E6E6FA,stroke-dasharray: 5 5
+    style MPX5500DP fill:#FFE4B5
+    style RP2040 fill:#FFB6C1
+    style VSYS fill:#FFA07A
+    
+    classDef alert fill:#FF6B6B,stroke:#C92A2A,color:#FFF
+    
+    NOTE1["✓ GP26 multiuso: GPIO o ADC<br/>Mayor flexibilidad que ESP32"]
+    NOTE2["⚠️ MPX5500DP óptimo a VS=5V<br/>Con VS=3.3V: 66% sensibilidad"]
+    NOTE3["✓ ADC 16 bits (0-65535)<br/>16× más resolución que ESP32"]
+    NOTE4["✓ RP2040 mejor linealidad ADC<br/>~±1% vs ±5% ESP32"]
+    
+    style NOTE1 fill:#D3F9D8,stroke:#51CF66
+    style NOTE2 fill:#FFE8CC,stroke:#FD7E14
+    style NOTE3 fill:#D0EBFF,stroke:#339AF0
+    style NOTE4 fill:#D3F9D8,stroke:#51CF66
