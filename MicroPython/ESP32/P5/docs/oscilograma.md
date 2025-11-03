@@ -1,80 +1,35 @@
-# Visualización y CSV — Práctica 5 (BMP280)
+# Oscilograma — PWM para Servomotores (Práctica 5)
 
-Este documento explica el formato de datos CSV emitido por el modo 5 del firmware y cómo visualizar las señales de temperatura, presión y altitud en tiempo real desde el PC.
+Los servos R/C esperan un tren de pulsos de ~50 Hz (periodo 20 ms). El ángulo se codifica en el ancho de pulso:
 
----
+- ~1.0 ms  → cerca de 0°
+- ~1.5 ms  → cerca de 90° (centro)
+- ~2.0 ms  → cerca de 180°
 
-## Formato CSV
+Algunos servos aceptan rangos extendidos (p.ej. 0.5–2.4 ms), pero no es universal. Si escuchas zumbidos fuertes o el servo se fuerza al extremo, reduce el rango.
 
-Encabezado (1ª línea):
-
-```
-timestamp_ms,temp_C,press_hPa,press_kPa,altitude_m
-```
-
-- `timestamp_ms`: tiempo relativo desde que se inició el modo (milisegundos).
-- `temp_C`: temperatura en °C (float con 2 decimales).
-- `press_hPa`: presión en hPa (hectopascales), 1 hPa = 100 Pa.
-- `press_kPa`: presión en kPa (kilopascales), 1 kPa = 1000 Pa.
-- `altitude_m`: altitud estimada en metros, según fórmula barométrica con P0=101325 Pa.
-
-Ejemplo de líneas:
+## Forma de onda esperada
 
 ```
-0,25.31,1012.56,101.26,116.2
-500,25.32,1012.54,101.25,116.3
-1000,25.32,1012.52,101.25,116.3
+Nivel alto:  ┌──────┐                     ┌──────────┐
+				 │      │                     │          │
+				 │      │                     │          │
+Nivel bajo: ─┘      └─────────────────────┘          └────────
+				 ↑      ↑                                 ↑
+				 t=0    t=1.0–2.0 ms                      t=20 ms (periodo)
 ```
 
----
+## Medición con osciloscopio
 
-## Visualización en vivo
+1. Conecta la punta del canal CH1 a la señal de servo (GPIO18) y la pinza a GND.
+2. Configura base de tiempo a 2 ms/div aprox. y trigger en flanco de subida.
+3. Verifica:
+	- Periodo ≈ 20 ms (50 Hz).
+	- Ancho alto ≈ 1.0–2.0 ms según el modo (barrido/manual).
+4. Si el pulso es inestable, revisa la alimentación del servo (ruido) y la tierra común.
 
-En la carpeta `tools/` se incluye `live_plot.py`, que abre el puerto serie y grafica en tiempo real:
+## Notas de alimentación
 
-- Temperatura (°C)
-- Presión (hPa)
-- Altitud (m)
-
-Características:
-
-- Auto‑detección de puerto en Windows/Linux/macOS (puedes forzar con `--port COMx`).
-- Ventana deslizante en segundos (`--window 60` por defecto).
-- Guardado opcional de CSV en disco (`--save datos.csv`).
-- Cero relativo de altitud (`--alt-zero` toma la primera muestra como referencia 0 m).
-
-Consulta `tools/README.md` para instalación de dependencias y uso detallado.
-
----
-
-## Análisis offline en Python (opcional)
-
-Si ya guardaste un CSV, puedes analizarlo con pandas/matplotlib. Por ejemplo:
-
-```python
-import pandas as pd
-import matplotlib.pyplot as plt
-
-df = pd.read_csv('datos.csv')
-df['t_s'] = df['timestamp_ms'] / 1000.0
-
-fig, ax = plt.subplots(3, 1, figsize=(9, 7), sharex=True)
-ax[0].plot(df['t_s'], df['temp_C'], label='Temp (°C)')
-ax[0].set_ylabel('°C'); ax[0].grid(True)
-
-ax[1].plot(df['t_s'], df['press_hPa'], label='Presión (hPa)', color='tab:orange')
-ax[1].set_ylabel('hPa'); ax[1].grid(True)
-
-ax[2].plot(df['t_s'], df['altitude_m'], label='Altitud (m)', color='tab:green')
-ax[2].set_ylabel('m'); ax[2].set_xlabel('Tiempo (s)'); ax[2].grid(True)
-
-plt.tight_layout(); plt.show()
-```
-
----
-
-## Consejos
-
-- Para mejorar estabilidad de altitud, aumenta oversampling y activa filtro IIR en el sensor (ver `BMP280._configure`).
-- Ajusta la presión de referencia a nivel del mar si buscas altitud absoluta precisa.
-- Asegúrate de que el cable USB está en buen estado (errores de frame/ruido pueden romper el CSV).
+- Usa una fuente 5V capaz de suministrar el pico de corriente del servo.
+- Coloca un capacitor electrolítico (470–1000 µF) cerca del servo entre 5V y GND si notas caídas.
+- GND del ESP32 y de la fuente del servo deben estar unidas.

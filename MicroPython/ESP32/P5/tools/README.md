@@ -1,6 +1,9 @@
-# Herramientas de visualización — P5 (BMP280)
+# Herramientas — P5 (Servos PWM)
 
-Este directorio contiene un script para graficar en tiempo real los datos enviados por el ESP32 (modo 5: CSV).
+Este directorio incluye utilidades para interactuar con el firmware de servos:
+
+- `servo_cli.py`: envía ángulos o pulsos por el puerto serie (para usar con Modo 2 o 3).
+- `live_plot.py`: permanece del ejercicio anterior; no es necesario para esta práctica.
 
 ## Instalación (Windows)
 
@@ -15,15 +18,20 @@ py -m pip install -r requirements.txt
 python -m pip install -r requirements.txt
 ```
 
-## Uso básico
+## Uso rápido: CLI de servo
 
-Conecta el ESP32, abre el modo 5 en el dispositivo y ejecuta:
+Con el ESP32 en Modo 2 (ángulo) o Modo 3 (pulso), ejecuta desde PowerShell:
 
 ```powershell
-py live_plot.py
-```
+# Establecer ángulo a 90°
+py servo_cli.py --port COM5 angle 90
 
-El script intentará detectar el puerto serie automáticamente.
+# Barrido 0–180–0 en pasos de 5°
+py servo_cli.py --port COM5 sweep --min 0 --max 180 --step 5 --delay 0.05
+
+# Enviar un pulso de 1500 us (Modo 3)
+py servo_cli.py --port COM5 pulse 1500
+```
 
 ## Opciones útiles
 
@@ -40,6 +48,5 @@ py live_plot.py --alt-zero
 
 ## Notas
 
-- Si ves la ventana vacía, verifica que el firmware esté en Modo 5 y que
-  el encabezado CSV coincida con: `timestamp_ms,temp_C,press_hPa,press_kPa,altitude_m`.
-- Si hay varios dispositivos serie, indica el puerto manualmente con `--port`.
+- Asegúrate de que el firmware esté en el modo correspondiente (2 o 3) antes de usar la CLI.
+- Cambia `COM5` por tu puerto serie.
