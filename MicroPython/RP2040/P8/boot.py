@@ -1,0 +1,18 @@
+# boot.py — RP2040 MicroPython
+# Práctica 8: Sistema Integrado Sensor-Actuador con Énfasis Aeronáutico (RP2040)
+
+print("\n" + "="*70)
+print(" "*15 + "SISELA - Sistema de Control Aeronáutico (RP2040)")
+print(" "*20 + "Práctica 8: Integración Total")
+print("="*70)
+print()
+print("  🛩️  Sistema Integrado de Sensores y Actuadores (RP2040)")
+print()
+print("  Subsistemas activos:")
+print("    • Sensores de vuelo (ADC x3 + TEMP interna)")
+print("    • Superficies de control (Servos x2)")
+print("    • Sistema de propulsión (PWM)")
+print("    • Tren de aterrizaje (Stepper)")
+print()
+print("="*70)
+print()
