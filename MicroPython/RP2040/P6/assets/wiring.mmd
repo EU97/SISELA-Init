@@ -1,0 +1,41 @@
+%% Diagrama de cableado — P6 Conmutación de potencia (PWM + transistor) (RP2040)
+flowchart TB
+  subgraph RP2040[Raspberry Pi Pico RP2040]
+    PWM18[GP18 PWM1 A] --> Rg[Res 220 Ω]
+    ADC26[GP26 ADC0 opcional]
+    GNDuC[GND]
+    VSYS_PIN[VSYS 5V]
+  end
+
+  Rg --> G[Gate/Base MOSFET]
+  D[Drain] --> LOAD[Carga]
+  LOAD --> VPLUS[+V fuente externa\no VSYS]
+  S[Source] --> GNDp[GND fuente]
+  GNDuC --- GNDp
+
+  %% VSYS como opción de alimentación
+  VSYS_PIN -.->|"Opcional\n(<500 mA)"| VPLUS
+
+  %% Diodo flyback para cargas inductivas
+  VPLUS ==|>|== D
+  note1[Diodo flyback 1N5819/1N4007\ncátodo a +V, ánodo al drenador]
+
+  %% Potenciómetro opcional
+  subgraph POT[Potenciómetro 10kΩ opcional]
+    POT_VCC[3V3]
+    POT_GND[GND]
+    POT_CURSOR[Cursor]
+  end
+
+  POT_VCC --- 3V3_NOTE[3V3 del RP2040]
+  POT_GND --- GNDuC
+  POT_CURSOR --> ADC26
+
+  classDef opt fill:#eef,stroke:#99f,color:#000;
+  ADC26:::opt
+  POT:::opt
+
+  classDef note fill:#fff9c4,stroke:#bdb76b,color:#333;
+  N1([GND común entre RP2040 y fuente externa obligatorio]):::note
+  N2([VSYS suficiente para cargas <500 mA. Fuente externa para >500 mA]):::note
+  N3([RP2040: PWM jitter <1ns, ADC 16-bit para control ultra preciso]):::note
