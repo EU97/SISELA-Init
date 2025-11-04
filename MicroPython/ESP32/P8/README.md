@@ -81,6 +81,17 @@ Esta práctica integra múltiples componentes de las prácticas anteriores (P1-P
 |-------|-----------|
 | Endstop | GPIO4 (pull-up) |
 
+## Diagramas de cableado
+
+Los siguientes diagramas muestran el cableado sugerido para ambas variantes de driver de motor a pasos:
+
+- [A4988 + NEMA17 (wiring_a4988.mmd)](assets/wiring_a4988.mmd)
+- [ULN2003 + 28BYJ-48 (wiring_uln2003.mmd)](assets/wiring_uln2003.mmd)
+
+Puedes visualizar los archivos `.mmd` con extensiones Mermaid en VS Code o convertirlos a imagen para documentación.
+
+> **Nota:** Si usas el driver ULN2003, los pines utilizados (GPIO25/26/32/33) pueden entrar en conflicto con los ADC si usas todos los sensores. Considera remapear sensores o reducir su número.
+
 ## Uso del sistema
 
 ### 1. Arranque del sistema

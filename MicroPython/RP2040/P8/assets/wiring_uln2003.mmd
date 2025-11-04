@@ -1,0 +1,76 @@
+%% Mermaid wiring diagram — RP2040 P8 (ULN2003 + 28BYJ-48)
+flowchart LR
+  subgraph MCU[RP2040]
+    %% Nota: ULN2003 usa GP26-28 → conflictos con ADC
+    GP26[GP26 IN1]
+    GP27[GP27 IN2]
+    GP28[GP28 IN3]
+    GP22[GP22 IN4]
+    GP14[GP14 Servo Aileron]
+    GP15[GP15 Servo Elevator]
+    GP13[GP13 PWM Motor]
+    GP4[GP4 Endstop]
+  end
+
+  subgraph SERVOS[Servos 5V (fuente externa)]
+    S1[Servo Aileron]
+    S2[Servo Elevator]
+  end
+
+  subgraph PWMDRIVE[Etapa PWM Motor]
+    MOSFET[ MOSFET N-Channel ]
+    MOTOR[ Motor DC / Carga ]
+    DIODE[Diodo Flyback]
+    VEXT[+V Motor]
+  end
+
+  subgraph STEPPER[ULN2003 + 28BYJ-48]
+    U1[IN1]
+    U2[IN2]
+    U3[IN3]
+    U4[IN4]
+    MTR[28BYJ-48]
+    V5M[+5V]
+  end
+
+  subgraph ENDSTOP[Endstop (NO → GND)]
+    SW[Micro switch]
+  end
+
+  %% Servos signal
+  GP14 -- señal --> S1
+  GP15 -- señal --> S2
+
+  %% PWM motor
+  GP13 -- Gate --> MOSFET
+  VEXT --> MOTOR
+  MOTOR -- a Dreno --> MOSFET
+  DIODE -. en paralelo a MOTOR (cátodo a +V) .-
+
+  %% Stepper ULN2003 control
+  GP26 --> U1
+  GP27 --> U2
+  GP28 --> U3
+  GP22 --> U4
+  MTR --- STEPPER
+  V5M --- STEPPER
+
+  %% Endstop
+  GP4 -- PULL_UP --> SW
+  SW -- Activo a GND --> STEPPER
+
+  %% Commons and grounds
+  subgraph PWR[Fuentes y GND]
+    GND[ GND común ]
+    V5[ +5V Servos ]
+  end
+
+  SERVOS --- V5
+  PWMDRIVE --- VEXT
+  MCU --- GND
+  SERVOS --- GND
+  PWMDRIVE --- GND
+  STEPPER --- GND
+  ENDSTOP --- GND
+
+  note over MCU,STEPPER: ADVERTENCIA: ULN2003 usa GP26–GP28; reubica ADC si los necesitas.

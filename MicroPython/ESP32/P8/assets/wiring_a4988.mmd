@@ -1,0 +1,92 @@
+%% Mermaid wiring diagram — ESP32 P8 (A4988 variant)
+flowchart LR
+  subgraph MCU[ESP32]
+    GPIO34[GPIO34 ADC Altitude]
+    GPIO35[GPIO35 ADC Speed]
+    GPIO32[GPIO32 ADC Attitude]
+    GPIO33[GPIO33 ADC Light]
+    GPIO25[GPIO25 Servo Aileron]
+    GPIO26[GPIO26 Servo Elevator]
+    GPIO18[GPIO18 PWM Motor]
+    GPIO19[GPIO19 STEP]
+    GPIO21[GPIO21 DIR]
+    GPIO5[GPIO5 EN]
+    GPIO4[GPIO4 Endstop]
+  end
+
+  subgraph SERVOS[Servos 5V (fuente externa)]
+    S1[Servo Aileron]
+    S2[Servo Elevator]
+  end
+
+  subgraph PWMDRIVE[Etapa PWM Motor]
+    MOSFET[ MOSFET N-Channel ]
+    MOTOR[ Motor DC / Carga ]
+    DIODE[Diodo Flyback]
+    VEXT[+V Motor]
+  end
+
+  subgraph STEPPER[A4988 Driver + NEMA17]
+    ASTEP[STEP]
+    ADIR[DIR]
+    AEN[EN (LOW=ON)]
+    VMOT[VMOT 12V]
+    GNDST[GND]
+    MTR[NEMA 17]
+  end
+
+  subgraph SENS[Potenciómetros / Sensores]
+    ALT[Altitud Pot]
+    SPD[Velocidad Pot]
+    ATT[Actitud Pot]
+    LUX[LDR + R]
+  end
+
+  subgraph ENDSTOP[Endstop (NO → GND)]
+    SW[Micro switch]
+  end
+
+  %% ADC connections
+  ALT -- 0-3.3V --> GPIO34
+  SPD -- 0-3.3V --> GPIO35
+  ATT -- 0-3.3V --> GPIO32
+  LUX -- 0-3.3V --> GPIO33
+
+  %% Servos signal
+  GPIO25 -- señal --> S1
+  GPIO26 -- señal --> S2
+
+  %% PWM motor
+  GPIO18 -- Gate --> MOSFET
+  VEXT --> MOTOR
+  MOTOR -- a Dreno --> MOSFET
+  DIODE -. en paralelo a MOTOR (cátodo a +V) .-
+
+  %% Stepper driver control
+  GPIO19 --> ASTEP
+  GPIO21 --> ADIR
+  GPIO5  --> AEN
+  VMOT -. 12V externa .- STEPPER
+  MTR --- STEPPER
+
+  %% Endstop
+  GPIO4 -- PULL_UP --> SW
+  SW -- Activo a GND --> GNDST
+
+  %% Commons and grounds
+  subgraph PWR[Fuentes y GND]
+    GND[ GND común ]
+    V5[ +5V Servos ]
+    V12[ +12V VMOT ]
+  end
+
+  SERVOS --- V5
+  PWMDRIVE --- VEXT
+  STEPPER --- V12
+  MCU --- GND
+  SERVOS --- GND
+  PWMDRIVE --- GND
+  STEPPER --- GND
+  ENDSTOP --- GND
+
+  note over MCU,STEPPER: GND COMÚN entre ESP32, 5V servos y 12V motor

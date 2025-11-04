@@ -90,6 +90,11 @@
 
 ---
 
+
+## Advertencia sobre ULN2003 y ADC
+
+> **Nota:** Si usas el driver ULN2003, los pines GPIO25/26/32/33 pueden entrar en conflicto con los ADC si usas todos los sensores. Considera remapear sensores a otros pines disponibles o reducir el número de sensores.
+
 ## Notas importantes
 
 1. **GND común**: Conectar GND de ESP32, fuente externa y todos los componentes

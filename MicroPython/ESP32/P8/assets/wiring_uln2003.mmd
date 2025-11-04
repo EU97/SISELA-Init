@@ -1,0 +1,75 @@
+%% Mermaid wiring diagram — ESP32 P8 (ULN2003 + 28BYJ-48)
+flowchart LR
+  subgraph MCU[ESP32]
+    GPIO26[GPIO26 IN1]
+    GPIO25[GPIO25 IN2]
+    GPIO33[GPIO33 IN3]
+    GPIO32[GPIO32 IN4]
+    GPIO34[GPIO34 ADC Altitude]
+    GPIO35[GPIO35 ADC Speed]
+    GPIO18[GPIO18 PWM Motor]
+    GPIO4[GPIO4 Endstop]
+  end
+
+  subgraph SERVOS[Servos 5V (fuente externa)]
+    S1[Servo Aileron]
+    S2[Servo Elevator]
+  end
+
+  subgraph PWMDRIVE[Etapa PWM Motor]
+    MOSFET[ MOSFET N-Channel ]
+    MOTOR[ Motor DC / Carga ]
+    DIODE[Diodo Flyback]
+    VEXT[+V Motor]
+  end
+
+  subgraph STEPPER[ULN2003 + 28BYJ-48]
+    U1[IN1]
+    U2[IN2]
+    U3[IN3]
+    U4[IN4]
+    MTR[28BYJ-48]
+    V5M[+5V]
+  end
+
+  subgraph ENDSTOP[Endstop (NO → GND)]
+    SW[Micro switch]
+  end
+
+  %% Servos signal
+  GPIO25 -- señal --> S1
+  GPIO26 -- señal --> S2
+
+  %% PWM motor
+  GPIO18 -- Gate --> MOSFET
+  VEXT --> MOTOR
+  MOTOR -- a Dreno --> MOSFET
+  DIODE -. en paralelo a MOTOR (cátodo a +V) .-
+
+  %% Stepper ULN2003 control
+  GPIO26 --> U1
+  GPIO25 --> U2
+  GPIO33 --> U3
+  GPIO32 --> U4
+  MTR --- STEPPER
+  V5M --- STEPPER
+
+  %% Endstop
+  GPIO4 -- PULL_UP --> SW
+  SW -- Activo a GND --> STEPPER
+
+  %% Commons and grounds
+  subgraph PWR[Fuentes y GND]
+    GND[ GND común ]
+    V5[ +5V Servos ]
+  end
+
+  SERVOS --- V5
+  PWMDRIVE --- VEXT
+  MCU --- GND
+  SERVOS --- GND
+  PWMDRIVE --- GND
+  STEPPER --- GND
+  ENDSTOP --- GND
+
+  note over MCU,STEPPER: ULN2003 usa GPIO25/26/32/33; revisa conflictos con ADC si usas todos los sensores.
