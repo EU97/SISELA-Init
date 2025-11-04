@@ -1,0 +1,8 @@
+# PlatformIO build folder
+.pio/
+# VSCode/CLion
+.vscode/
+.idea/
+# OS
+.DS_Store
+Thumbs.db
