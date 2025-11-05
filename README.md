@@ -40,14 +40,14 @@ Comparar ambos enfoques permite elegir la herramienta adecuada según restriccio
 Las prácticas cubren desde GPIO y temporización hasta integración de sensores, actuadores y validación de sistemas. Cada práctica incluye objetivos, materiales, conexiones, modos de operación y criterios de validación. Todas las prácticas de RP2040/MicroPython (P1–P8) están implementadas y documentadas con detalles de conexiones, diagramas y bitácoras en sus respectivas carpetas.
 
 
-- **P1:** GPIO, temporización, menú interactivo
-- **P2:** ADC, sensor de posición, calibración
-- **P3:** NTC, ecuación Beta, temperatura
-- **P4:** Sensor presión MPX5500DP, conversión kPa
-- **P5:** Servo PWM (C++), sensor digital I²C/SPI (MicroPython)
-- **P6:** PWM potencia, transistor, OLED (MicroPython)
-- **P7:** Motor a pasos, secuencias, endstop
-- **P8:** Integración y validación de sistema
+- **P1:** GPIO, temporización, menú interactivo, LEDs y botones
+- **P2:** ADC, sensor de posición analógico (potenciómetro), calibración
+- **P3:** NTC, ecuación Beta, medición de temperatura
+- **P4:** Sensor presión MPX5500DP, conversión ADC a kPa
+- **P5:** Control de servomotores con PWM (50 Hz), barrido y control por potenciómetro
+- **P6:** Conmutación de potencia con PWM y transistor (MOSFET/BJT)
+- **P7:** Control de motores a pasos (A4988/ULN2003), homing y endstop
+- **P8:** Integración completa: sensores ADC, servos, motor PWM y tren de aterrizaje
 
 
 ## Índice de prácticas y estado
@@ -63,8 +63,8 @@ Las prácticas cubren desde GPIO y temporización hasta integración de sensores
 | P2       | ✅ ADC demo | ✅ ADC demo | ✅ Completa | ✅ Completa |
 | P3       | ⚪ Pendiente | ⚪ Pendiente | ✅ Completa | ✅ Completa |
 | P4       | ⚪ Pendiente | ⚪ Pendiente | ✅ Completa | ✅ Completa |
-| P5       | ✅ Servo PWM | ✅ Servo PWM | ✅ BMP280 I²C | ✅ Completa |
-| P6       | ✅ PWM pot. | ✅ PWM pot. | ✅ OLED + BMP280 | ✅ Completa |
+| P5       | ✅ Servo PWM | ✅ Servo PWM | ✅ Servo PWM | ✅ Servo PWM |
+| P6       | ✅ PWM pot. | ✅ PWM pot. | ✅ PWM potencia | ✅ PWM potencia |
 | P7       | ⚪ Pendiente | ⚪ Pendiente | ✅ Stepper | ✅ Completa |
 | P8       | ⚪ Integración | ⚪ Integración | ⚪ Integración | ✅ Completa |
 
