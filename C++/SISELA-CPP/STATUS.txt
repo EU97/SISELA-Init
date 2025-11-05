@@ -1,0 +1,132 @@
+```
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                   SISELA-CPP — Estado de Implementación                   ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│  ARQUITECTURA UNIFICADA                                                 │
+├─────────────────────────────────────────────────────────────────────────┤
+│  ✅ Un solo código fuente para ESP32 y RP2040                          │
+│  ✅ Selección de práctica via -DPRACTICE=N (1..8)                      │
+│  ✅ Selección de driver stepper via -DSTEPPER_A4988 / _ULN2003         │
+│  ✅ Pin mapping unificado por práctica y plataforma                     │
+│  ✅ Macros de conveniencia (PIN_SERVO_AILERON, PIN_PWM_MOTOR, etc.)    │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│  DRIVERS COMUNES (src/common/)                                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│  ✅ FlightSensors    → ADC normalizado (ESP32: 12-bit, RP2040: 10-bit) │
+│  ✅ FlightControls   → Servo PWM 50 Hz REAL                            │
+│     ├─ ESP32:  ESP32Servo library (attach/write)                       │
+│     └─ RP2040: PWM nativo (analogWriteFreq + 1000-2000 µs)            │
+│  ✅ PropulsionSystem → PWM motor 0-100% (analogWrite)                  │
+│  ✅ LandingGear      → Stepper A4988/ULN2003 + endstop homing          │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│  PRÁCTICAS IMPLEMENTADAS                                                │
+├──────┬──────────────────────────────────────────────┬─────────┬─────────┤
+│  P#  │  Descripción                                 │  ESP32  │  RP2040 │
+├──────┼──────────────────────────────────────────────┼─────────┼─────────┤
+│  P1  │  LEDs y serial básico                        │   🔲    │   🔲    │
+│  P2  │  Potenciómetro ADC                           │   ✅    │   ✅    │
+│  P3  │  Sensor NTC temperatura                      │   🔲    │   🔲    │
+│  P4  │  Sensor presión MPX5500DP                    │   🔲    │   🔲    │
+│  P5  │  Servomotor PWM 50 Hz                        │   ✅    │   ✅    │
+│  P6  │  Conmutación PWM + transistor                │   ✅    │   ✅    │
+│  P7  │  Motor a pasos (A4988/ULN2003)               │   🔲    │   🔲    │
+│  P8  │  Sistema integrado completo                  │   ✅    │   ✅    │
+└──────┴──────────────────────────────────────────────┴─────────┴─────────┘
+
+Leyenda: ✅ Implementada | 🔲 Template (pendiente)
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│  CARACTERÍSTICAS P5: SERVOMOTOR PWM                                     │
+├─────────────────────────────────────────────────────────────────────────┤
+│  • PWM 50 Hz real con 1000-2000 µs (0-180°)                            │
+│  • Modo 1: Barrido automático 0-180-0°                                 │
+│  • Modo 2: Control manual por ADC (potenciómetro)                      │
+│  • Pin servo: ESP32=GPIO18 | RP2040=GP18                               │
+│  • Pin ADC (opcional): ESP32=GPIO34 | RP2040=GP26                      │
+│  • Cambio de modo por serial: '1' o '2'                                │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│  CARACTERÍSTICAS P6: CONMUTACIÓN PWM                                    │
+├─────────────────────────────────────────────────────────────────────────┤
+│  • Control de carga (LED/motor) via transistor MOSFET/BJT              │
+│  • PWM 1 kHz (ajustable según tipo de carga)                           │
+│  • Duty cycle: 0-100% con resolución 8-bit                             │
+│  • Modo 1: Rampa automática 0-100-0%                                   │
+│  • Modo 2: Control manual por serial (enviar 0-100)                    │
+│  • Modo 3: Control por ADC (potenciómetro)                             │
+│  • Pin PWM: ESP32=GPIO18 | RP2040=GP18                                 │
+│  • Pin ADC (opcional): ESP32=GPIO34 | RP2040=GP26                      │
+│  • Cambio de modo: '1', '2', '3' por serial                            │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│  MATRIZ DE PINES — ESP32 DevKit v1                                     │
+├────┬────────┬──────────┬─────────┬──────────┬─────────┬─────────┬──────┤
+│ P# │ ADC    │ ADC ext  │ Servo A │ Servo E  │ PWM mot │ Endstop │ Step │
+├────┼────────┼──────────┼─────────┼──────────┼─────────┼─────────┼──────┤
+│ P2 │ 34     │ —        │ —       │ —        │ —       │ —       │ —    │
+│ P3 │ 34     │ —        │ —       │ —        │ —       │ —       │ —    │
+│ P4 │ 34     │ —        │ —       │ —        │ —       │ —       │ —    │
+│ P5 │ 34(o)  │ —        │ 18      │ —        │ —       │ —       │ —    │
+│ P6 │ 34(o)  │ —        │ —       │ —        │ 18      │ —       │ —    │
+│ P7 │ —      │ —        │ —       │ —        │ —       │ 4       │ Yes  │
+│ P8 │ 34     │ 35,32,33 │ 25      │ 26       │ 18      │ 4       │ Yes  │
+└────┴────────┴──────────┴─────────┴──────────┴─────────┴─────────┴──────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│  MATRIZ DE PINES — RP2040 (Raspberry Pi Pico)                          │
+├────┬────────┬──────────┬─────────┬──────────┬─────────┬─────────┬──────┤
+│ P# │ ADC    │ ADC ext  │ Servo A │ Servo E  │ PWM mot │ Endstop │ Step │
+├────┼────────┼──────────┼─────────┼──────────┼─────────┼─────────┼──────┤
+│ P2 │ 26     │ —        │ —       │ —        │ —       │ —       │ —    │
+│ P3 │ 26     │ —        │ —       │ —        │ —       │ —       │ —    │
+│ P4 │ 26     │ —        │ —       │ —        │ —       │ —       │ —    │
+│ P5 │ 26(o)  │ —        │ 18      │ —        │ —       │ —       │ —    │
+│ P6 │ 26(o)  │ —        │ —       │ —        │ 18      │ —       │ —    │
+│ P7 │ —      │ —        │ —       │ —        │ —       │ 4       │ Yes  │
+│ P8 │ 26     │ 27,28    │ 14      │ 15       │ 13      │ 4       │ Yes  │
+└────┴────────┴──────────┴─────────┴──────────┴─────────┴─────────┴──────┘
+
+Nota: (o) = opcional para control manual con potenciómetro
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│  PRÓXIMOS PASOS                                                         │
+├─────────────────────────────────────────────────────────────────────────┤
+│  1. ✅ Compilar P5/P6 para validar hardware real                        │
+│  2. 🔲 Implementar P3 (NTC + ecuación Beta)                             │
+│  3. 🔲 Implementar P4 (MPX5500DP + conversión kPa)                      │
+│  4. 🔲 Implementar P7 (Stepper completo con secuencias)                 │
+│  5. 🔲 Implementar P1 (LEDs y botones básicos)                          │
+│  6. 🔲 Añadir telemetría CSV para gráficos                              │
+│  7. 🔲 CI/CD con GitHub Actions                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│  COMANDOS RÁPIDOS                                                       │
+├─────────────────────────────────────────────────────────────────────────┤
+│  # Cambiar práctica (editar platformio.ini):                           │
+│  build_flags = -DPRACTICE=5 -DSTEPPER_A4988                            │
+│                                                                         │
+│  # Compilar ESP32:                                                      │
+│  pio run -e esp32dev                                                    │
+│                                                                         │
+│  # Compilar RP2040:                                                     │
+│  pio run -e pico                                                        │
+│                                                                         │
+│  # Flashear y monitor serial:                                          │
+│  pio run -e esp32dev -t upload && pio device monitor                   │
+└─────────────────────────────────────────────────────────────────────────┘
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║  Estado: 🟢 FUNCIONAL — 4/8 prácticas implementadas (P2, P5, P6, P8)    ║
+║  Servo PWM 50 Hz REAL implementado en ambas plataformas                  ║
+║  Pin mapping completo para las 8 prácticas                               ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+```
