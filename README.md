@@ -1,110 +1,136 @@
+
 # SISELA-Init
 
-Introducción a los Sistemas Eléctricos de Aeronaves (SISELA): un repositorio didáctico para desarrollar, comparar y documentar prácticas de instrumentación y sistemas embebidos en dos plataformas de hardware (ESP32 y RP2040) y dos enfoques de software (C++ y MicroPython).
+
+Repositorio didáctico para prácticas de instrumentación y sistemas embebidos en aeronáutica, usando dos plataformas de hardware (ESP32 y RP2040) y dos enfoques de software (C++ unificado con PlatformIO y MicroPython). Todas las prácticas para RP2040/MicroPython (P1–P8) están completas y documentadas. Estructura y documentación actualizadas para facilitar comparación, portabilidad y validación cruzada.
+
 
 ## Objetivo del repositorio
 
-- Reforzar los fundamentos de adquisición de datos, acondicionamiento de señales, control básico y comunicación en sistemas embebidos aplicados a aeronáutica.
-- Implementar las mismas prácticas (P1..P8) en C++ y en MicroPython, y en ESP32 y RP2040, para contrastar tiempos de desarrollo, rendimiento y portabilidad.
-- Fomentar documentación clara y reproducible: cada práctica incluye objetivos, metodología, resultados esperados y bitácora de pruebas. Las conexiones y diagramas se documentarán cuando implementemos cada programa específico.
+- Reforzar fundamentos de adquisición de datos, acondicionamiento de señales, control y comunicación en sistemas embebidos aplicados a aeronáutica.
+- Implementar las mismas prácticas (P1..P8) en C++ (PlatformIO unificado) y MicroPython, para ESP32 y RP2040.
+- Documentar conexiones, pines, diagramas y resultados de forma clara y reproducible.
+- Facilitar validación cruzada y comparación entre plataformas y lenguajes.
 
-## ¿Por qué varios lenguajes y plataformas?
 
-- C++: máximo control, rendimiento y ecosistema maduro (drivers, RTOS, bibliotecas). Requiere ciclos de compilación y mayor cuidado de memoria/tiempos.
-- MicroPython: desarrollo rápido, iteración interactiva y curva de aprendizaje suave; ideal para prototipos y docencia.
-- ESP32: Wi‑Fi/BLE integrados, doble núcleo, ADC y periféricos robustos.
-- RP2040: microcontrolador de propósito general económico, PIO para I/O determinista y muy buen soporte educativo.
+## Plataformas y enfoques
 
-Comparar ambos enfoques te ayuda a elegir la herramienta adecuada según restricciones de tiempo, costo, rendimiento y mantenimiento.
+- **C++ (PlatformIO unificado):** Máximo control, drivers y portabilidad. Un solo código fuente para ESP32 y RP2040, selección de práctica y plataforma por macros y entornos. Drivers propios para servos, PWM, ADC, stepper, etc.
+- **MicroPython:** Desarrollo rápido, iteración interactiva, ideal para prototipos y docencia. Estructura modular y checklist para prácticas.
+- **ESP32:** Wi‑Fi/BLE, doble núcleo, ADC robusto, periféricos avanzados.
+- **RP2040:** Microcontrolador económico, PIO para I/O determinista, excelente para educación y prototipos.
+
+Comparar ambos enfoques permite elegir la herramienta adecuada según restricciones de tiempo, costo, rendimiento y mantenimiento.
+
 
 ## Estructura del repositorio
 
-- `C++/ESP32/` y `C++/RP2040/`: Implementaciones en C++ por práctica (P1..P8).
-- `MicroPython/ESP32/` y `MicroPython/RP2040/`: Implementaciones en MicroPython por práctica (P1..P8).
-- Cada práctica tendrá su propio `README.md` con objetivos, materiales, pasos, validaciones y resultados.
+- `C++/SISELA-CPP/`: Proyecto unificado PlatformIO (C++), selecciona práctica y plataforma por entorno.
+	- `src/practices/`: Implementaciones P1..P8 (selección por macro `-DPRACTICE=N`).
+	- `include/pins/`: Tablas de pines unificadas por práctica y plataforma.
+	- `src/common/`: Drivers para servos, PWM, ADC, stepper, etc.
+	- Documentación: `README.md`, `COMPILE_TEST.md`, `IMPLEMENTATION_STATUS.md`, `QUICK_START.md`, `STATUS.txt`.
+- `MicroPython/ESP32/` y `MicroPython/RP2040/`: Implementaciones por práctica, checklist y plantillas para documentación, pines y diagramas.
+- Cada práctica tiene su propio `README.md`, `PINES.md`, diagramas y bitácora.
 
-Nota: si ves referencias antiguas a “Mircorpython/”, se están migrando a `MicroPython/` y quedarán deprecadas una vez validada la nueva estructura.
 
-## Descripciones generales de las prácticas (P1..P8)
+## Resumen de prácticas (P1..P8)
 
-Estas descripciones son intencionalmente generales; los detalles de conexiones/diagramas se agregarán cuando entremos a cada implementación.
 
-- P1 · Entradas/Salidas digitales y temporización con menú interactivo
-	- Objetivo: dominar GPIO, lectura de botones con anti‑rebote, salidas digitales y temporización (parpadeo, secuencias LED, control con entradas).
-	- Resultados esperados: manejo confiable de señales digitales y generación de patrones temporales con menú REPL.
-	- **MicroPython/ESP32/P1 completado**: 4 modos (blink, chaser, monitor, integrado), menú con timeout y comando 'm', documentación de pines con diagramas Mermaid/SVG.
+Las prácticas cubren desde GPIO y temporización hasta integración de sensores, actuadores y validación de sistemas. Cada práctica incluye objetivos, materiales, conexiones, modos de operación y criterios de validación. Todas las prácticas de RP2040/MicroPython (P1–P8) están implementadas y documentadas con detalles de conexiones, diagramas y bitácoras en sus respectivas carpetas.
 
-- P2 · Adquisición analógica (ADC) con sensor de posición
-	- Objetivo: configurar el ADC, muestrear una señal analógica y convertirla a unidades físicas (posición/ángulo) con calibración simple.
-	- Resultados esperados: curva entrada‑salida y verificación de resolución/ruido del ADC.
 
-- P3 · Medición de temperatura con NTC y Beta equation
-	- Objetivo: medir temperatura usando un divisor resistivo con NTC, aplicar ecuación de Steinhart-Hart/Beta, caracterizar sensibilidad y calibración ADC opcional.
-	- Resultados esperados: tabla/ecuación T(ADC), comparación con referencia y análisis de error.
-	- **MicroPython/ESP32/P3 completado**: Incluye 5 modos (raw ADC, voltaje, resistencia, temperatura, calibración wizard), documentación de calibración ADC y diagramas.
+- **P1:** GPIO, temporización, menú interactivo
+- **P2:** ADC, sensor de posición, calibración
+- **P3:** NTC, ecuación Beta, temperatura
+- **P4:** Sensor presión MPX5500DP, conversión kPa
+- **P5:** Servo PWM (C++), sensor digital I²C/SPI (MicroPython)
+- **P6:** PWM potencia, transistor, OLED (MicroPython)
+- **P7:** Motor a pasos, secuencias, endstop
+- **P8:** Integración y validación de sistema
 
-- P4 · Medición de presión con sensor MPX5500DP (20–520 kPa)
-	- Objetivo: leer un transductor de presión piezoresistivo, aplicar conversión ADC→kPa, calibración opcional y visualización en tiempo real.
-	- Resultados esperados: gráfica presión vs. tiempo, telemetría CSV y validación con presión atmosférica (~101 kPa).
-	- **MicroPython/ESP32/P4 completado**: Incluye modo CSV, calibración ADC, herramientas Python (live_plot.py), documentación técnica completa del sensor y diagramas de conexión.
 
-- P5 · Sensores digitales por bus (I²C/SPI)
-	- Objetivo: integrar un sensor digital (p. ej., barómetro/IMU) por I²C o SPI, leer registros y verificar calibraciones internas.
-	- Resultados esperados: lectura estable de magnitudes y comprensión del protocolo y temporizaciones.
-	- **MicroPython/ESP32/P5 completado**: BMP280 por I²C (0x76/0x77), lectura compensada de temperatura/presión, cálculo de altitud, modo CSV continuo, herramienta de graficación en PC y documentación técnica (BMP280.md).
+## Índice de prácticas y estado
 
-- P6 · Interfaz local con OLED SSD1306 (I²C)
-	- Objetivo: mostrar datos en una pantalla OLED 128×64 por I²C y componer una interfaz simple (dashboard y mini‑gráficas); compartir el bus con un sensor digital.
-	- Resultados esperados: visualización estable en OLED, diagnóstico con escaneo I²C y demo de refresco.
-	- **MicroPython/ESP32/P6 completado**: OLED SSD1306 (0x3C) + integración opcional con BMP280; 4 modos (dashboard T/P/Alt, mini‑gráfica, scan I²C, demo), drivers `ssd1306.py` y `bmp280.py`, pines/diagramas y documentación.
 
-- P7 · Control de actuadores III — Motores a pasos
-	- Objetivo: controlar motores a pasos con A4988/DRV8825 o ULN2003+28BYJ‑48, configurar sentido/velocidad (RPM), realizar movimientos por pasos con rampa simple y homing con fin de carrera.
-	- Resultados esperados: giro estable en ambos sentidos, barrido de velocidad, posicionamiento relativo (N pasos) y referencia a home con endstop.
-	- **MicroPython/ESP32/P7 completado**: Modos (configurar driver, jog, N pasos con rampa, barrido de velocidad, homing, info), drivers `stepper_a4988.py` y `stepper_uln2003.py`, pines/diagramas y guía técnica `STEPPER.md`.
+### Estado de implementación (noviembre 2025)
 
-- P8 · Integración y validación del sistema
-	- Objetivo: combinar sensores/actuadores, cerrar ciclo (si aplica), calibrar, validar y documentar lecciones aprendidas.
-	- Resultados esperados: demo final funcional con criterios de aceptación y reporte técnico.
+> **Nota:** Todas las prácticas para RP2040/MicroPython (P1–P8) están completas y documentadas. No hay plantillas ni pendientes en esta columna.
 
-## Índice de prácticas
+| Práctica | C++ ESP32 | C++ RP2040 | MicroPython ESP32 | MicroPython RP2040 |
+|----------|:---------:|:----------:|:----------------:|:-----------------:|
+| P1       | ⚪ Plantilla | ⚪ Plantilla | ✅ Completa | ✅ Completa |
+| P2       | ✅ ADC demo | ✅ ADC demo | ✅ Completa | ✅ Completa |
+| P3       | ⚪ Pendiente | ⚪ Pendiente | ✅ Completa | ✅ Completa |
+| P4       | ⚪ Pendiente | ⚪ Pendiente | ✅ Completa | ✅ Completa |
+| P5       | ✅ Servo PWM | ✅ Servo PWM | ✅ BMP280 I²C | ✅ Completa |
+| P6       | ✅ PWM pot. | ✅ PWM pot. | ✅ OLED + BMP280 | ✅ Completa |
+| P7       | ⚪ Pendiente | ⚪ Pendiente | ✅ Stepper | ✅ Completa |
+| P8       | ⚪ Integración | ⚪ Integración | ⚪ Integración | ✅ Completa |
 
-### C++ · ESP32
-- [P1](C++/ESP32/P1/README.md)
-- [P2](C++/ESP32/P2/README.md)
-- [P3](C++/ESP32/P3/README.md)
-- [P4](C++/ESP32/P4/README.md)
-- [P5](C++/ESP32/P5/README.md)
-- [P6](C++/ESP32/P6/README.md)
-- [P7](C++/ESP32/P7/README.md)
-- [P8](C++/ESP32/P8/README.md)
+### Acceso rápido a prácticas
 
-### C++ · RP2040
-- [P1](C++/RP2040/P1/README.md)
-- [P2](C++/RP2040/P2/README.md)
-- [P3](C++/RP2040/P3/README.md)
-- [P4](C++/RP2040/P4/README.md)
-- [P5](C++/RP2040/P5/README.md)
-- [P6](C++/RP2040/P6/README.md)
-- [P7](C++/RP2040/P7/README.md)
-- [P8](C++/RP2040/P8/README.md)
+#### C++ (PlatformIO unificado)
+- [SISELA-CPP/README.md](C++/SISELA-CPP/README.md) — guía de compilación, selección de práctica y plataforma
+- [P1](C++/ESP32/P1/README.md) | [P2](C++/ESP32/P2/README.md) | ...
+- [P1](C++/RP2040/P1/README.md) | [P2](C++/RP2040/P2/README.md) | ...
 
-### MicroPython · ESP32
-- [P1](MicroPython/ESP32/P1/README.md)
-- [P2](MicroPython/ESP32/P2/README.md)
-- [P3](MicroPython/ESP32/P3/README.md)
-- [P4](MicroPython/ESP32/P4/README.md)
-- [P5](MicroPython/ESP32/P5/README.md)
-- [P6](MicroPython/ESP32/P6/README.md)
-- [P7](MicroPython/ESP32/P7/README.md)
-- [P8](MicroPython/ESP32/P8/README.md)
+#### MicroPython
+- [ESP32 P1](MicroPython/ESP32/P1/README.md) | [P2](MicroPython/ESP32/P2/README.md) | ...
+- [RP2040 P1](MicroPython/RP2040/P1/README.md) | [P2](MicroPython/RP2040/P2/README.md) | ...
 
-### MicroPython · RP2040
-- [P1](MicroPython/RP2040/P1/README.md)
-- [P2](MicroPython/RP2040/P2/README.md)
-- [P3](MicroPython/RP2040/P3/README.md)
-- [P4](MicroPython/RP2040/P4/README.md)
-- [P5](MicroPython/RP2040/P5/README.md)
-- [P6](MicroPython/RP2040/P6/README.md)
-- [P7](MicroPython/RP2040/P7/README.md)
-- [P8](MicroPython/RP2040/P8/README.md)
+## Conexiones y mapeo de pines
+
+
+Las conexiones y pines de cada práctica están documentados en los archivos `PINES.md` y diagramas `assets/wiring.mmd`/`wiring.svg` dentro de cada carpeta de práctica. El proyecto C++ unificado usa tablas de pines centralizadas (`include/pins/pins_esp32.h`, `pins_rp2040.h`) y macros para acceso rápido. Para RP2040/MicroPython, todos los detalles de pines y diagramas están completos y disponibles en los archivos `PINES.md` y `assets/wiring.mmd` de cada práctica.
+
+### Ejemplo de mapeo (ESP32 DevKit v1)
+
+| Práctica | ADC (altitude) | Servo | PWM Motor | Endstop | Stepper |
+|----------|----------------|-------|-----------|---------|---------|
+| P2/P3/P4 | 34             | —     | —         | —       | —       |
+| P5       | 34 (opt)       | 18    | —         | —       | —       |
+| P6       | 34 (opt)       | —     | 18        | —       | —       |
+| P7       | —              | —     | —         | 4       | 18,19,5 |
+| P8       | 34             | 25/26 | 18        | 4       | 19,21,5 |
+
+### Ejemplo de mapeo (RP2040 Pico)
+
+| Práctica | ADC (altitude) | Servo | PWM Motor | Endstop | Stepper |
+|----------|----------------|-------|-----------|---------|---------|
+| P2/P3/P4 | 26             | —     | —         | —       | —       |
+| P5       | 26 (opt)       | 18    | —         | —       | —       |
+| P6       | 26 (opt)       | —     | 18        | —       | —       |
+| P7       | —              | —     | —         | 4       | 18,19,5 |
+| P8       | 26             | 14/15 | 13        | 4       | 18,19,5 |
+
+Consulta los archivos de cada práctica para detalles, advertencias de voltaje y diagramas.
+
+## Guía rápida de uso
+
+### C++ (PlatformIO)
+1. Instala VS Code y la extensión PlatformIO IDE.
+2. Abre `C++/SISELA-CPP/` como proyecto PlatformIO.
+3. Edita `platformio.ini` para seleccionar la práctica (`-DPRACTICE=N`) y plataforma (`env:esp32dev` o `env:pico`).
+4. Compila y sube al hardware.
+5. Consulta `QUICK_START.md` y `COMPILE_TEST.md` para instrucciones detalladas y validación.
+
+### MicroPython
+1. Abre la carpeta de la práctica deseada (`MicroPython/ESP32/Pn` o `MicroPython/RP2040/Pn`).
+2. Sigue el checklist y plantilla de README para materiales, conexiones y pasos.
+3. Usa Pymakr (VS Code) o Thonny para cargar y ejecutar el código.
+4. Consulta los diagramas y archivos de pines para conexiones.
+
+## Documentación y recursos
+
+- [SISELA-CPP/README.md](C++/SISELA-CPP/README.md): detalles del proyecto C++ unificado
+- [COMPILE_TEST.md](C++/SISELA-CPP/COMPILE_TEST.md): guía de compilación y validación
+- [IMPLEMENTATION_STATUS.md](C++/SISELA-CPP/IMPLEMENTATION_STATUS.md): estado y bitácora de implementación
+- [QUICK_START.md](C++/SISELA-CPP/QUICK_START.md): guía rápida de uso y validación
+- [CHECKLIST_PRACTICAS.md](MicroPython/ESP32/CHECKLIST_PRACTICAS.md): checklist para prácticas MicroPython
+- Plantillas y ejemplos en `_template/` de cada plataforma
+- Diagramas y documentación técnica en cada carpeta de práctica
+
+## Créditos y licencia
+
+Material académico para prácticas de instrumentación y sistemas embebidos. Uso libre con atribución. Consulta los archivos de cada práctica para créditos específicos de sensores, drivers y recursos externos.
