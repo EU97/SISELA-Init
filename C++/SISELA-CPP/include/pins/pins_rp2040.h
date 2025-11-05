@@ -4,8 +4,12 @@
 // Tabla de pines por práctica (1..8) para Raspberry Pi Pico (RP2040)
 static const Pins PINS_TABLE_RP2040[9] = {
   {}, // 0
-  // 1: P1 — Básica (LED y Serial)
-  { -1, -1, -1, -1,  -1, -1,  -1,  -1,  {-1,-1,-1}, {-1,-1,-1,-1} },
+  // 1: P1 — LEDs y botones
+  // LEDs: onboard GP25, externos GP16/GP17
+  // Botones: GP14/GP15 (pull-up interno, activo LOW)
+  // Nota: Usamos campos servo_aileron/elevator para LED2/LED3
+  //       y a4988.step/dir para BTN1/BTN2 (reuso creativo)
+  { -1, -1, -1, -1,  16, 17,  -1,  -1,  {14,15,-1}, {-1,-1,-1,-1} },
   // 2: P2 — Potenciómetro ADC (GP26)
   { 26, -1, -1, -1,  -1, -1,  -1,  -1,  {-1,-1,-1}, {-1,-1,-1,-1} },
   // 3: P3 — NTC (ADC GP26)

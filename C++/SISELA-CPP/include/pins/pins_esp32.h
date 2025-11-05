@@ -5,13 +5,17 @@
 // Índice 0 sin uso para que PRACTICE coincida con el índice
 static const Pins PINS_TABLE_ESP32[9] = {
   {}, // 0 - no usado
-  // 1: P1 — Básica (LED y Serial)
+  // 1: P1 — LEDs y botones
+  // LEDs: onboard GPIO2, externos GPIO4/GPIO5
+  // Botones: GPIO13/GPIO14 (pull-up interno, activo LOW)
+  // Nota: Usamos campos servo_aileron/elevator para LED2/LED3
+  //       y a4988.step/dir para BTN1/BTN2 (reuso creativo)
   {
     /*adc_altitude*/-1, /*adc_speed*/-1, /*adc_attitude*/-1, /*adc_light*/-1,
-    /*servo_aileron*/-1, /*servo_elevator*/-1,
+    /*servo_aileron*/4, /*servo_elevator*/5,  // LED2=GPIO4, LED3=GPIO5
     /*pwm_motor*/-1,
     /*endstop*/-1,
-    /*a4988*/{-1,-1,-1},
+    /*a4988*/{13,14,-1},  // BTN1=GPIO13, BTN2=GPIO14
     /*uln2003*/{-1,-1,-1,-1}
   },
   // 2: P2 — Potenciómetro ADC
