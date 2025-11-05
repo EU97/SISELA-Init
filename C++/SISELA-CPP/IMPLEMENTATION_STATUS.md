@@ -44,17 +44,43 @@
 - Frecuencia: 5 Hz (200 ms)
 - Pines: ESP32=GPIO34, RP2040=GP26
 
-#### P3: Sensor NTC Temperatura ✅
-- Lectura ADC de divisor resistivo (3V3 → R_series 10kΩ → nodo → NTC 10kΩ → GND)
-- Cálculo de resistencia NTC: R_NTC = R_series * V_nodo / (V_supply - V_nodo)
-- Conversión a temperatura con ecuación Beta: 1/T = 1/T0 + (1/β) * ln(R/R0)
-- Parámetros: R0=10kΩ @ 25°C, Beta=3950
+#### P3: Sensor de Temperatura (NTC o LM35) ✅
+- **Menú inicial**: Selección entre NTC Termistor o LM35 (timeout 5s, default NTC)
+- **Opción 1: NTC Termistor (10kΩ, Beta=3950)**
+  - Lectura ADC de divisor resistivo (3V3 → R_series 10kΩ → nodo → NTC 10kΩ → GND)
+  - Cálculo de resistencia NTC: R_NTC = R_series * V_nodo / (V_supply - V_nodo)
+  - Conversión a temperatura con ecuación Beta: 1/T = 1/T0 + (1/β) * ln(R/R0)
+  - Parámetros: R0=10kΩ @ 25°C, Beta=3950
+  - 4 modos NTC:
+    1. ADC crudo + Voltaje
+    2. Resistencia NTC (Ω)
+    3. Temperatura (°C)
+    4. Monitor CSV: t_ms,adc,v_node_v,r_ntc_ohm,t_c
+- **Opción 2: LM35 (10mV/°C)**
+  - Conexión directa: LM35 Vout → ADC (Vs=3.3V o 5V)
+  - Conversión lineal: T(°C) = Voltaje(V) × 100
+  - Rango: 0-100°C típico (LM35DZ)
+  - Nota: Máxima precisión con Vs=5V
+  - 3 modos LM35:
+    1. ADC crudo + Voltaje
+    2. Temperatura (°C)
+    3. Monitor CSV: t_ms,adc,v_node_v,t_c
+- **Configuración común**:
+  - Promedio de 16 muestras por lectura
+  - Frecuencia: 10 Hz (100 ms)
+  - Menú 'm' vuelve al menú de modos del sensor actual (sin re‑selección de sensor)
+  - Pines: ESP32=GPIO34, RP2040=GP26
+
+#### P4: Sensor Presión MPX5500DP ✅
+- Sensor piezoresistivo de presión absoluta 20-520 kPa
+- Transfer function: Vout = VS × (0.2 × P + 0.2)
+- Conversión inversa: P(kPa) = (Vout - Vmin) / sensitivity + Pmin
+- Sensibilidad: ~0.0052 V/kPa @ 3.3V
+- Advertencia: Sensor requiere VS=4.75-5.25V para especificación óptima
 - 3 modos seleccionables:
   1. ADC crudo + Voltaje
-  2. Resistencia NTC (Ω)
-  3. Temperatura (°C)
-- Promedio de 16 muestras por lectura
-- Frecuencia: 10 Hz (100 ms)
+  2. Voltaje del sensor
+  3. Presión (kPa)
 - Pines: ESP32=GPIO34, RP2040=GP26
 
 #### P4: Sensor Presión MPX5500DP ✅

@@ -41,7 +41,7 @@ SISELA-CPP/
 |----------|--------|-------------|----------------|
 | **P1** | ✅ **Implementada** | **LEDs y botones (4 modos)** | 3× LED + 2× Botones |
 | **P2** | ✅ **Implementada** | **Potenciómetro ADC** | ADC |
-| **P3** | ✅ **Implementada** | **Sensor NTC temperatura (Beta)** | ADC + NTC 10kΩ |
+| **P3** | ✅ **Implementada** | **Sensor temperatura (NTC o LM35)** | ADC + NTC/LM35 |
 | **P4** | ✅ **Implementada** | **Sensor presión MPX5500DP (kPa)** | ADC + MPX5500DP |
 | **P5** | ✅ **Implementada** | **Servomotor PWM 50 Hz** | Servo + ADC opcional |
 | **P6** | ✅ **Implementada** | **Conmutación PWM + transistor** | PWM + ADC opcional |
@@ -75,23 +75,40 @@ Lectura básica de ADC con normalización por plataforma.
 - Frecuencia: 5 Hz (200 ms)
 - Normalización automática: 12-bit (ESP32) vs 10-bit (RP2040)
 
-### P3: Sensor NTC Temperatura
+### P3: Sensor de Temperatura (NTC o LM35)
 
-Medición de temperatura con termistor NTC 10kΩ usando ecuación Beta.
+Medición de temperatura con dos opciones de sensor seleccionables por menú.
 
 **Características:**
+- **Menú inicial**: Selección entre NTC Termistor o LM35
+
+**Opción 1: NTC Termistor (10kΩ, Beta=3950)**
 - **Divisor resistivo**: 3V3 → R_series 10kΩ → [nodo ADC] → NTC 10kΩ → GND
-- **Conversión**:
+- **Conversión NTC**:
   1. ADC → Voltaje (normalizado por plataforma)
   2. Voltaje → R_NTC: `R_NTC = R_series × V_nodo / (V_supply - V_nodo)`
   3. R_NTC → Temperatura: `1/T = 1/T0 + (1/β) × ln(R/R0)` (ecuación Beta)
-- **Parámetros**: R0=10kΩ @ 25°C, Beta=3950 (típico)
-- **3 modos seleccionables**:
+- **Parámetros NTC**: R0=10kΩ @ 25°C, Beta=3950 (típico)
+- **4 modos NTC**:
   1. ADC crudo + Voltaje
   2. Resistencia NTC (Ω)
   3. Temperatura (°C)
+  4. Monitor CSV: `t_ms,adc,v_node_v,r_ntc_ohm,t_c`
+
+**Opción 2: LM35 (Sensor lineal 10mV/°C)**
+- **Conexión directa**: LM35 Vout → [ADC] (Vs del LM35 a 3.3V o 5V)
+- **Conversión LM35**: `T(°C) = Voltaje(V) × 100` (10mV/°C = 0.01V/°C)
+- **Rango**: 0-100°C típico (LM35DZ), hasta 150°C en otras versiones
+- **Nota**: Máxima precisión con Vs=5V (si usa 3.3V, precisión reducida)
+- **3 modos LM35**:
+  1. ADC crudo + Voltaje
+  2. Temperatura (°C)
+  3. Monitor CSV: `t_ms,adc,v_node_v,t_c`
+
+**Configuración común:**
 - **Promedio**: 16 muestras por lectura
 - **Frecuencia**: 10 Hz (100 ms)
+- **Menú interactivo**: 'm' vuelve al menú de modos del sensor actual (no re‑selecciona sensor)
 
 ### P4: Sensor Presión MPX5500DP
 

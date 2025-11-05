@@ -1,15 +1,17 @@
 """
-Práctica 3 — Medición de Temperatura con NTC (ESP32 + MicroPython)
+Práctica 3 — Medición de Temperatura (ESP32 + MicroPython)
+
+Menú para elegir sensor: NTC (termistor) o LM35, con modos normales y CSV.
 
 Funciones clave:
-  - Lectura ADC en GPIO34 (ADC1) de un divisor resistivo: 3V3 -> R_SERIE -> nodo -> NTC -> GND.
-  - Cálculo de V(nodo), R_NTC y T(°C) mediante la ecuación Beta.
-  - Modos elegibles por REPL: 1) ADC crudo, 2) Resistencia, 3) Temperatura, 4) Monitor integrado (CSV).
-  - Tecla 'm' + ENTER para volver al menú.
+    - NTC: divisor resistivo 3V3 -> R_SERIE -> nodo -> NTC -> GND, ecuación Beta para °C
+    - LM35: sensor lineal 10mV/°C, conversión directa V*100 → °C
+    - Menús por REPL: selección de sensor y modos por sensor
+    - Tecla 'm' + ENTER: volver al menú de modos del sensor actual; CTRL+C reinicia / rerun para cambiar de sensor
 
 Advertencias:
-  - Usa pines ADC apropiados (32–39). GPIO34 es entrada‑solo.
-  - La atenuación 11dB apunta a ~3.3V full scale; considera no linealidades del ADC de ESP32.
+    - Usa pines ADC apropiados (32–39). GPIO34 es entrada‑solo.
+    - La atenuación 11dB apunta a ~3.3V full scale; considera no linealidades del ADC de ESP32.
 """
 
 import sys
@@ -82,6 +84,13 @@ PRINT_EVERY = 1
 CAL_FILE = "calibration.json"
 AUTO_USE_CALIBRATION = False  # deja False por defecto como solicitaste
 _cal = {"low": 0, "high": (1 << 12) - 1, "enabled": False}
+
+# LM35: 10mV/°C (0.01 V/°C) → Temp(°C) = Volt(V) * 100
+def lm35_voltage_to_temp_c(v):
+    try:
+        return float(v) * 100.0
+    except Exception:
+        return 0.0
 
 # ==========================
 # Inicialización de HW
@@ -281,6 +290,24 @@ def mode_monitor_csv(period_s=0.2):
         time.sleep_ms(int(period_s*1000))
 
 
+# ==========================
+# Modos LM35
+# ==========================
+
+def mode_lm35_temperature(period_s=0.5):
+    print("[LM35] Temperatura (°C) — 10mV/°C (V*100)")
+    p = _poll()
+    while True:
+        if _readline_timeout(0, p) in ("m", "menu", "q", "exit"):
+            print("Volviendo al menú…")
+            return
+        val = adc_read_avg(adc)
+        v = adc_to_voltage(val)
+        t = lm35_voltage_to_temp_c(v)
+        print("V={:.3f}V, T={:.2f}°C".format(v, t))
+        time.sleep_ms(int(period_s*1000))
+
+
 def mode_calibration_wizard():
     """Guía interactiva para calibrar el ADC (offset/ganancia).
 
@@ -338,7 +365,7 @@ def mode_calibration_wizard():
 # Menú
 # ==========================
 
-def menu_select(timeout_s=6):
+def menu_select_ntc(timeout_s=6):
     print("\n=== P3 · NTC — elige modo y ENTER ===")
     print("1) ADC crudo")
     print("2) Resistencia NTC")
@@ -351,25 +378,81 @@ def menu_select(timeout_s=6):
     _ = _readline_timeout(10, p)
     for _ in range(timeout_s):
         s = _readline_timeout(1000, p)
-    if s and s in ("1","2","3","4","5"):
+        if s and s in ("1","2","3","4","5"):
             return int(s)
     return 3
 
 
+def menu_select_lm35(timeout_s=6):
+    print("\n=== P3 · LM35 — elige modo y ENTER ===")
+    print("1) ADC crudo")
+    print("2) Temperatura (°C)")
+    print("3) Monitor CSV (t,adc,V,T)")
+    print("(Por defecto en {}s: 2)".format(timeout_s))
+    p = _poll()
+    _ = _readline_timeout(10, p)
+    for _ in range(timeout_s):
+        s = _readline_timeout(1000, p)
+        if s and s in ("1","2","3"):
+            return int(s)
+    return 2
+
+
+def menu_select_sensor(timeout_s=5):
+    print("\n=== P3 · Selecciona sensor ===")
+    print("1) NTC (termistor)")
+    print("2) LM35 (10mV/°C)")
+    print("(Por defecto en {}s: 1)".format(timeout_s))
+    p = _poll()
+    _ = _readline_timeout(10, p)
+    for _ in range(timeout_s):
+        s = _readline_timeout(1000, p)
+        if s and s in ("1","2"):
+            return int(s)
+    return 1
+
+
 def main():
-    print("[main][P3] Listo. Escribe 'm' + ENTER para volver al menú desde cualquier modo.")
+    print("[main][P3] Listo. Selecciona sensor y modo. 'm' vuelve al menú actual.")
     while True:
-        sel = menu_select()
-        if sel == 1:
-            mode_adc_raw()
-        elif sel == 2:
-            mode_resistance()
-        elif sel == 3:
-            mode_temperature()
-        elif sel == 4:
-            mode_monitor_csv()
-        else:
-            mode_calibration_wizard()
+        sensor = menu_select_sensor()
+        if sensor == 1:  # NTC
+            while True:
+                sel = menu_select_ntc()
+                if sel == 1:
+                    mode_adc_raw()
+                elif sel == 2:
+                    mode_resistance()
+                elif sel == 3:
+                    mode_temperature()
+                elif sel == 4:
+                    mode_monitor_csv()
+                else:
+                    mode_calibration_wizard()
+                # Al salir de un modo con 'm', regresa a menú NTC
+        else:  # LM35
+            while True:
+                sel = menu_select_lm35()
+                if sel == 1:
+                    mode_adc_raw()
+                elif sel == 2:
+                    mode_lm35_temperature()
+                else:
+                    # sel == 3: CSV
+                    t0 = time.ticks_ms()
+                    print("t_ms,adc,v_node_v,t_c")
+                    p = _poll()
+                    while True:
+                        if _readline_timeout(0, p) in ("m", "menu", "q", "exit"):
+                            print("\nVolviendo al menú…")
+                            break
+                        t = time.ticks_diff(time.ticks_ms(), t0)
+                        val = adc_read_avg(adc)
+                        v = adc_to_voltage(val)
+                        tc = lm35_voltage_to_temp_c(v)
+                        print("{},{},{:.4f},{:.2f}".format(t, val, v, tc))
+                        time.sleep_ms(int(0.2*1000))
+                # Al salir de un modo con 'm', regresa a menú LM35
 
 
 if __name__ == "__main__":
