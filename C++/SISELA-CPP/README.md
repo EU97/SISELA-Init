@@ -39,14 +39,77 @@ SISELA-CPP/
 
 | Práctica | Estado | Descripción | Hardware clave |
 |----------|--------|-------------|----------------|
-| P1 | ⚪ Template | LEDs y serial básico | LED onboard |
-| P2 | ⚪ Template | Potenciómetro ADC | ADC |
-| P3 | ⚪ Template | Sensor NTC temperatura | ADC |
-| P4 | ⚪ Template | Sensor presión MPX5500DP | ADC |
+| **P1** | ✅ **Implementada** | **LEDs y botones (4 modos)** | 3× LED + 2× Botones |
+| **P2** | ✅ **Implementada** | **Potenciómetro ADC** | ADC |
+| **P3** | ✅ **Implementada** | **Sensor NTC temperatura (Beta)** | ADC + NTC 10kΩ |
+| **P4** | ✅ **Implementada** | **Sensor presión MPX5500DP (kPa)** | ADC + MPX5500DP |
 | **P5** | ✅ **Implementada** | **Servomotor PWM 50 Hz** | Servo + ADC opcional |
 | **P6** | ✅ **Implementada** | **Conmutación PWM + transistor** | PWM + ADC opcional |
-| P7 | ⚪ Template | Motor a pasos (A4988/ULN2003) | Stepper + endstop |
-| **P8** | ✅ **Integrada** | Sistema completo vuelo | Todo integrado |
+| **P7** | ✅ **Implementada** | **Motor a pasos (4 modos)** | Stepper + endstop |
+| **P8** | ✅ **Integrada** | **Sistema completo vuelo** | Todo integrado |
+
+### P1: LEDs y Botones
+
+Control básico de GPIO con 3 LEDs y 2 botones (pull-up interno, activo LOW).
+
+**Características:**
+- **LEDs**: Onboard + 2 externos (con resistencias 220-330Ω)
+- **Botones**: Pull-up interno, activo LOW (contacto a GND)
+- **4 modos interactivos**:
+  1. Blink LED1 cada 1s
+  2. Chaser 3 LEDs (secuencia 300ms)
+  3. Monitor botones (reflejar estado en LED2/LED3)
+  4. Integrado: BTN1 alterna patrón (chaser/blink-all), BTN2 cambia velocidad
+- **Menú por serial**: Timeout 5s (default modo 4), 'm' para volver al menú
+
+**Pines:**
+- **ESP32**: LED1=GPIO2, LED2=GPIO4, LED3=GPIO5, BTN1=GPIO13, BTN2=GPIO14
+- **RP2040**: LED1=GP25, LED2=GP16, LED3=GP17, BTN1=GP14, BTN2=GP15
+
+### P2: Potenciómetro ADC
+
+Lectura básica de ADC con normalización por plataforma.
+
+**Características:**
+- Salida: ADC RAW, Voltaje (3.3V), Porcentaje (0-100%)
+- Frecuencia: 5 Hz (200 ms)
+- Normalización automática: 12-bit (ESP32) vs 10-bit (RP2040)
+
+### P3: Sensor NTC Temperatura
+
+Medición de temperatura con termistor NTC 10kΩ usando ecuación Beta.
+
+**Características:**
+- **Divisor resistivo**: 3V3 → R_series 10kΩ → [nodo ADC] → NTC 10kΩ → GND
+- **Conversión**:
+  1. ADC → Voltaje (normalizado por plataforma)
+  2. Voltaje → R_NTC: `R_NTC = R_series × V_nodo / (V_supply - V_nodo)`
+  3. R_NTC → Temperatura: `1/T = 1/T0 + (1/β) × ln(R/R0)` (ecuación Beta)
+- **Parámetros**: R0=10kΩ @ 25°C, Beta=3950 (típico)
+- **3 modos seleccionables**:
+  1. ADC crudo + Voltaje
+  2. Resistencia NTC (Ω)
+  3. Temperatura (°C)
+- **Promedio**: 16 muestras por lectura
+- **Frecuencia**: 10 Hz (100 ms)
+
+### P4: Sensor Presión MPX5500DP
+
+Sensor piezoresistivo de presión absoluta 20-520 kPa.
+
+**Características:**
+- **Transfer function**: `Vout = VS × (0.2 × P + 0.2)` donde P en kPa
+- **Conversión inversa**: `P(kPa) = (Vout - Vmin) / sensitivity + Pmin`
+- **Sensibilidad**: ~0.0052 V/kPa @ VS=3.3V
+- **⚠ IMPORTANTE**: Sensor requiere VS=4.75-5.25V para especificación óptima
+  - Con VS=3.3V funciona pero con menor precisión
+  - Para máxima precisión: usar 5V + divisor de voltaje para ADC
+- **3 modos seleccionables**:
+  1. ADC crudo + Voltaje
+  2. Voltaje del sensor
+  3. Presión (kPa)
+- **Promedio**: 50 muestras por lectura
+- **Frecuencia**: 10 Hz (100 ms)
 
 ### P5: Servomotor PWM
 
@@ -81,33 +144,60 @@ Control de carga (LED/motor/resistencia) mediante PWM + transistor MOSFET/BJT.
 - **GND común obligatorio** entre microcontrolador y fuente de carga
 - Diodo flyback (1N5819/1N4007) obligatorio para cargas inductivas
 
+### P7: Motor a Pasos
+
+Control completo de motor a pasos con soporte para A4988/DRV8825 (NEMA 17) y ULN2003 (28BYJ-48).
+
+**Características:**
+- **Conversión RPM → intervalo**: Cálculo automático de timing entre pasos
+- **Endstop opcional**: Pull-up interno, activo LOW (contacto a GND)
+- **4 modos interactivos**:
+  1. **Jog manual**: '+' avanza, '-' retrocede paso a paso
+  2. **Mover N pasos**: Número de pasos con RPM configurable (ej: 200, -200)
+  3. **Barrido continuo**: Avanza hasta límite/endstop, retrocede, repite
+  4. **Homing**: Buscar fin de carrera retrocediendo (requiere endstop)
+- **Parámetros**: DEFAULT_RPM=60, STEPS_PER_REV=200 (NEMA 17)
+- **Menú por serial**: Timeout 5s (default modo 4), 'm' para volver al menú
+
+**Pines:**
+- **A4988/DRV8825**: STEP=GPIO18/GP18, DIR=GPIO19/GP19, EN=GPIO5/GP5
+- **ULN2003**: IN1-IN4 = GPIO26,25,33,32 (ESP32) o GP26,27,28,22 (RP2040)
+- **Endstop**: GPIO4/GP4 (opcional)
+
+**Selección de driver:**
+- Edita `platformio.ini`: `-DSTEPPER_A4988` o `-DSTEPPER_ULN2003`
+
 ## Matriz de pines por práctica
 
 ### ESP32 DevKit v1
 
-| P# | ADC (altitude) | ADC (otros) | Servo (aileron) | Servo (elevator) | PWM Motor | Endstop | Stepper |
-|----|----------------|-------------|-----------------|------------------|-----------|---------|---------|
-| P1 | — | — | — | — | — | — | — |
-| P2 | **34** | — | — | — | — | — | — |
-| P3 | **34** | — | — | — | — | — | — |
-| P4 | **34** | — | — | — | — | — | — |
-| P5 | 34 (opt) | — | **18** | — | — | — | — |
-| P6 | 34 (opt) | — | — | — | **18** | — | — |
-| P7 | — | — | — | — | — | **4** | A4988: 18,19,5<br>ULN: 26,25,33,32 |
-| P8 | **34** | 35,32,33 | **25** | **26** | **18** | **4** | A4988: 19,21,5<br>ULN: 26,25,33,32 |
+| P# | ADC (altitude) | ADC (otros) | Servo (aileron) | Servo (elevator) | PWM Motor | Endstop | Stepper | LEDs/Botones |
+|----|----------------|-------------|-----------------|------------------|-----------|---------|---------|--------------|
+| P1 | — | — | 4 (LED2) | 5 (LED3) | — | — | 13,14 (BTN1,BTN2) | LED1=GPIO2 |
+| P2 | **34** | — | — | — | — | — | — | — |
+| P3 | **34** | — | — | — | — | — | — | — |
+| P4 | **34** | — | — | — | — | — | — | — |
+| P5 | 34 (opt) | — | **18** | — | — | — | — | — |
+| P6 | 34 (opt) | — | — | — | **18** | — | — | — |
+| P7 | — | — | — | — | — | **4** | A4988: 18,19,5<br>ULN: 26,25,33,32 | — |
+| P8 | **34** | 35,32,33 | **25** | **26** | **18** | **4** | A4988: 19,21,5<br>ULN: 26,25,33,32 | — |
+
+**Nota P1**: Reusa campos de la tabla de pines de forma creativa (servo_aileron/elevator para LED2/LED3, a4988.step/dir para BTN1/BTN2)
 
 ### RP2040 (Raspberry Pi Pico)
 
-| P# | ADC (altitude) | ADC (otros) | Servo (aileron) | Servo (elevator) | PWM Motor | Endstop | Stepper |
-|----|----------------|-------------|-----------------|------------------|-----------|---------|---------|
-| P1 | — | — | — | — | — | — | — |
-| P2 | **26** | — | — | — | — | — | — |
-| P3 | **26** | — | — | — | — | — | — |
-| P4 | **26** | — | — | — | — | — | — |
-| P5 | 26 (opt) | — | **18** | — | — | — | — |
-| P6 | 26 (opt) | — | — | — | **18** | — | — |
-| P7 | — | — | — | — | — | **4** | A4988: 18,19,5<br>ULN: 26,27,28,22 |
-| P8 | **26** | 27,28 | **14** | **15** | **13** | **4** | A4988: 18,19,5<br>ULN: 26,27,28,22 |
+| P# | ADC (altitude) | ADC (otros) | Servo (aileron) | Servo (elevator) | PWM Motor | Endstop | Stepper | LEDs/Botones |
+|----|----------------|-------------|-----------------|------------------|-----------|---------|---------|--------------|
+| P1 | — | — | 16 (LED2) | 17 (LED3) | — | — | 14,15 (BTN1,BTN2) | LED1=GP25 |
+| P2 | **26** | — | — | — | — | — | — | — |
+| P3 | **26** | — | — | — | — | — | — | — |
+| P4 | **26** | — | — | — | — | — | — | — |
+| P5 | 26 (opt) | — | **18** | — | — | — | — | — |
+| P6 | 26 (opt) | — | — | — | **18** | — | — | — |
+| P7 | — | — | — | — | — | **4** | A4988: 18,19,5<br>ULN: 26,27,28,22 | — |
+| P8 | **26** | 27,28 | **14** | **15** | **13** | **4** | A4988: 18,19,5<br>ULN: 26,27,28,22 | — |
+
+**Nota P1**: Reusa campos de la tabla de pines de forma creativa (servo_aileron/elevator para LED2/LED3, a4988.step/dir para BTN1/BTN2)
 
 **Leyenda:**
 - **(opt)**: Pin opcional para control manual con potenciómetro

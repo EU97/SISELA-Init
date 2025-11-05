@@ -29,13 +29,13 @@
 ├──────┬──────────────────────────────────────────────┬─────────┬─────────┤
 │  P#  │  Descripción                                 │  ESP32  │  RP2040 │
 ├──────┼──────────────────────────────────────────────┼─────────┼─────────┤
-│  P1  │  LEDs y serial básico                        │   🔲    │   🔲    │
+│  P1  │  LEDs y botones (4 modos)                    │   ✅    │   ✅    │
 │  P2  │  Potenciómetro ADC                           │   ✅    │   ✅    │
-│  P3  │  Sensor NTC temperatura                      │   🔲    │   🔲    │
-│  P4  │  Sensor presión MPX5500DP                    │   🔲    │   🔲    │
+│  P3  │  Sensor NTC temperatura (Beta)               │   ✅    │   ✅    │
+│  P4  │  Sensor presión MPX5500DP (kPa)              │   ✅    │   ✅    │
 │  P5  │  Servomotor PWM 50 Hz                        │   ✅    │   ✅    │
 │  P6  │  Conmutación PWM + transistor                │   ✅    │   ✅    │
-│  P7  │  Motor a pasos (A4988/ULN2003)               │   🔲    │   🔲    │
+│  P7  │  Motor a pasos (A4988/ULN2003)               │   ✅    │   ✅    │
 │  P8  │  Sistema integrado completo                  │   ✅    │   ✅    │
 └──────┴──────────────────────────────────────────────┴─────────┴─────────┘
 
@@ -99,13 +99,13 @@ Nota: (o) = opcional para control manual con potenciómetro
 ┌─────────────────────────────────────────────────────────────────────────┐
 │  PRÓXIMOS PASOS                                                         │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  1. ✅ Compilar P5/P6 para validar hardware real                        │
-│  2. 🔲 Implementar P3 (NTC + ecuación Beta)                             │
-│  3. 🔲 Implementar P4 (MPX5500DP + conversión kPa)                      │
-│  4. 🔲 Implementar P7 (Stepper completo con secuencias)                 │
-│  5. 🔲 Implementar P1 (LEDs y botones básicos)                          │
-│  6. 🔲 Añadir telemetría CSV para gráficos                              │
-│  7. 🔲 CI/CD con GitHub Actions                                         │
+│  1. ✅ Compilar y validar P1-P4, P7 para ambas plataformas              │
+│  2. 🔲 Testing hardware real de todas las prácticas                     │
+│  3. 🔲 Telemetría CSV estructurada para análisis (P3, P4)               │
+│  4. 🔲 Calibración ADC wizard interactivo (P3, P4)                      │
+│  5. 🔲 Añadir ejemplos de uso en README por práctica                    │
+│  6. 🔲 CI/CD con GitHub Actions (compile checks)                        │
+│  7. 🔲 OTA Updates para ESP32                                           │
 └─────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -125,8 +125,9 @@ Nota: (o) = opcional para control manual con potenciómetro
 └─────────────────────────────────────────────────────────────────────────┘
 
 ╔═══════════════════════════════════════════════════════════════════════════╗
-║  Estado: 🟢 FUNCIONAL — 4/8 prácticas implementadas (P2, P5, P6, P8)    ║
+║  Estado: 🟢 COMPLETO — 8/8 prácticas implementadas (P1-P8)               ║
 ║  Servo PWM 50 Hz REAL implementado en ambas plataformas                  ║
 ║  Pin mapping completo para las 8 prácticas                               ║
+║  NTC + MPX5500DP + Stepper: conversiones matemáticas implementadas       ║
 ╚═══════════════════════════════════════════════════════════════════════════╝
 ```

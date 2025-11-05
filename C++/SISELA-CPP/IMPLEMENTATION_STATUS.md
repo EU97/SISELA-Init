@@ -25,10 +25,50 @@
 
 ### Prácticas implementadas
 
+#### P1: LEDs y Botones ✅
+- Control de 3 LEDs (onboard + 2 externos)
+- Lectura de 2 botones (pull-up interno, activo LOW)
+- 4 modos interactivos:
+  1. Blink LED1 cada 1s
+  2. Chaser 3 LEDs (300ms)
+  3. Monitor botones (reflejo en LED2/LED3)
+  4. Integrado (BTN1=patrón chaser/blink-all, BTN2=velocidad)
+- Pines:
+  - ESP32: LED1=GPIO2, LED2=GPIO4, LED3=GPIO5, BTN1=GPIO13, BTN2=GPIO14
+  - RP2040: LED1=GP25, LED2=GP16, LED3=GP17, BTN1=GP14, BTN2=GP15
+- Menú por serial con timeout 5s (default modo 4)
+
 #### P2: Potenciómetro ADC ✅
 - Lectura ADC con normalización por plataforma
 - Salida: RAW, voltaje (3.3V), porcentaje
 - Frecuencia: 5 Hz (200 ms)
+- Pines: ESP32=GPIO34, RP2040=GP26
+
+#### P3: Sensor NTC Temperatura ✅
+- Lectura ADC de divisor resistivo (3V3 → R_series 10kΩ → nodo → NTC 10kΩ → GND)
+- Cálculo de resistencia NTC: R_NTC = R_series * V_nodo / (V_supply - V_nodo)
+- Conversión a temperatura con ecuación Beta: 1/T = 1/T0 + (1/β) * ln(R/R0)
+- Parámetros: R0=10kΩ @ 25°C, Beta=3950
+- 3 modos seleccionables:
+  1. ADC crudo + Voltaje
+  2. Resistencia NTC (Ω)
+  3. Temperatura (°C)
+- Promedio de 16 muestras por lectura
+- Frecuencia: 10 Hz (100 ms)
+- Pines: ESP32=GPIO34, RP2040=GP26
+
+#### P4: Sensor Presión MPX5500DP ✅
+- Sensor piezoresistivo de presión absoluta 20-520 kPa
+- Transfer function: Vout = VS × (0.2 × P + 0.2)
+- Conversión inversa: P(kPa) = (Vout - Vmin) / sensitivity + Pmin
+- Sensibilidad: ~0.0052 V/kPa @ 3.3V
+- Advertencia: Sensor requiere VS=4.75-5.25V para especificación óptima
+- 3 modos seleccionables:
+  1. ADC crudo + Voltaje
+  2. Voltaje del sensor
+  3. Presión (kPa)
+- Promedio de 50 muestras por lectura
+- Frecuencia: 10 Hz (100 ms)
 - Pines: ESP32=GPIO34, RP2040=GP26
 
 #### P5: Servomotor PWM ✅
@@ -51,6 +91,21 @@
 - Control por serial: '1', '2', '3' para modo; valores 0-100 en modo 2
 - Pines: PWM=GPIO18/GP18; ADC opcional=GPIO34/GP26
 
+#### P7: Motor a Pasos ✅
+- Soporte para A4988/DRV8825 (NEMA 17) y ULN2003 (28BYJ-48)
+- Conversión RPM → intervalo entre pasos (µs)
+- Endstop opcional con pull-up interno (activo LOW)
+- 4 modos interactivos:
+  1. Jog manual ('+' avanza, '-' retrocede paso a paso)
+  2. Mover N pasos (con RPM configurable)
+  3. Barrido continuo (avanza hasta límite/endstop, retrocede, repite)
+  4. Homing (buscar fin de carrera retrocediendo)
+- Parámetros: DEFAULT_RPM=60, STEPS_PER_REV=200 (NEMA 17)
+- Pines:
+  - A4988: STEP=GPIO18/GP18, DIR=GPIO19/GP19, EN=GPIO5/GP5
+  - ULN2003: IN1-IN4 = GPIO26,25,33,32 (ESP32) o GP26,27,28,22 (RP2040)
+  - Endstop: GPIO4/GP4 (opcional)
+
 #### P8: Sistema integrado ✅
 - Todos los subsistemas funcionando:
   - 4× ADC (altitude, speed, attitude, light)
@@ -61,12 +116,15 @@
 - Telemetría periódica cada 500 ms
 - Pines completos documentados para ambas plataformas
 
-## 🔄 Pendiente (templates)
+## 🔄 Historial reciente
 
-- [ ] P1: LEDs y serial básico
-- [ ] P3: Sensor NTC con cálculo de temperatura (ecuación Beta)
-- [ ] P4: Sensor presión MPX5500DP con conversión kPa
-- [ ] P7: Control stepper completo con modos de operación
+**2025-11-04**: Implementación completa de P1, P3, P4, P7
+- P1: Sistema completo de LEDs y botones con 4 modos interactivos
+- P3: Sensor NTC con ecuación Beta (temperatura °C)
+- P4: Sensor MPX5500DP con transfer function (presión kPa)
+- P7: Control stepper completo con jog, mover N, barrido y homing
+- Actualización de tablas de pines para P1 (reutilizando campos disponibles)
+- Todas las prácticas incluyen menú por serial con timeout y modo 'm' para volver
 
 ## 📋 Matriz de pines (resumen)
 
