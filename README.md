@@ -2,7 +2,7 @@
 # SISELA-Init
 
 
-Repositorio didáctico para prácticas de instrumentación y sistemas embebidos en aeronáutica, usando dos plataformas de hardware (ESP32 y RP2040) y dos enfoques de software (C++ unificado con PlatformIO y MicroPython). Todas las prácticas para RP2040/MicroPython (P1–P8) están completas y documentadas. Estructura y documentación actualizadas para facilitar comparación, portabilidad y validación cruzada.
+Repositorio didáctico para prácticas de instrumentación y sistemas embebidos en aeronáutica, usando dos plataformas de hardware (ESP32 y RP2040) y dos enfoques de software (C++ unificado con PlatformIO y MicroPython). Todas las prácticas P1–P7 están completas en las 4 combinaciones (C++ ESP32, C++ RP2040, MicroPython ESP32, MicroPython RP2040). P8 está completa en MicroPython y es un template funcional en C++. Estructura y documentación actualizadas para facilitar comparación, portabilidad y validación cruzada.
 
 
 ## Objetivo del repositorio
@@ -53,27 +53,27 @@ Las prácticas cubren desde GPIO y temporización hasta integración de sensores
 ## Índice de prácticas y estado
 
 
-### Estado de implementación (noviembre 2025)
+### Estado de implementación (febrero 2026)
 
-> **Nota:** Todas las prácticas para RP2040/MicroPython (P1–P8) están completas y documentadas. No hay plantillas ni pendientes en esta columna.
+> **Nota:** Todas las prácticas P1–P8 están implementadas en MicroPython (ESP32 y RP2040) y en C++ (PlatformIO unificado). C++ P8 es un template funcional pendiente de extensión.
 
 | Práctica | C++ ESP32 | C++ RP2040 | MicroPython ESP32 | MicroPython RP2040 |
 |----------|:---------:|:----------:|:----------------:|:-----------------:|
-| P1       | ⚪ Plantilla | ⚪ Plantilla | ✅ Completa | ✅ Completa |
-| P2       | ✅ ADC demo | ✅ ADC demo | ✅ Completa | ✅ Completa |
-| P3       | ⚪ Pendiente | ⚪ Pendiente | ✅ Completa | ✅ Completa |
-| P4       | ⚪ Pendiente | ⚪ Pendiente | ✅ Completa | ✅ Completa |
-| P5       | ✅ Servo PWM | ✅ Servo PWM | ✅ Servo PWM | ✅ Servo PWM |
-| P6       | ✅ PWM pot. | ✅ PWM pot. | ✅ PWM potencia | ✅ PWM potencia |
-| P7       | ⚪ Pendiente | ⚪ Pendiente | ✅ Stepper | ✅ Completa |
-| P8       | ⚪ Integración | ⚪ Integración | ⚪ Integración | ✅ Completa |
+| P1       | ✅ Completa | ✅ Completa | ✅ Completa | ✅ Completa |
+| P2       | ✅ Completa | ✅ Completa | ✅ Completa | ✅ Completa |
+| P3       | ✅ Completa | ✅ Completa | ✅ Completa | ✅ Completa |
+| P4       | ✅ Completa | ✅ Completa | ✅ Completa | ✅ Completa |
+| P5       | ✅ Completa | ✅ Completa | ✅ Completa | ✅ Completa |
+| P6       | ✅ Completa | ✅ Completa | ✅ Completa | ✅ Completa |
+| P7       | ✅ Completa | ✅ Completa | ✅ Completa | ✅ Completa |
+| P8       | ⚠️ Template | ⚠️ Template | ✅ Completa | ✅ Completa |
 
 ### Acceso rápido a prácticas
 
 #### C++ (PlatformIO unificado)
 - [SISELA-CPP/README.md](C++/SISELA-CPP/README.md) — guía de compilación, selección de práctica y plataforma
-- [P1](C++/ESP32/P1/README.md) | [P2](C++/ESP32/P2/README.md) | ...
-- [P1](C++/RP2040/P1/README.md) | [P2](C++/RP2040/P2/README.md) | ...
+- [QUICK_START.md](C++/SISELA-CPP/QUICK_START.md) — inicio rápido
+- Selección de práctica y plataforma vía `-DPRACTICE=N` y `env:esp32dev` / `env:pico` en `platformio.ini`
 
 #### MicroPython
 - [ESP32 P1](MicroPython/ESP32/P1/README.md) | [P2](MicroPython/ESP32/P2/README.md) | ...

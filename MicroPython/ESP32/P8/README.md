@@ -242,18 +242,10 @@ P8/
 │   ├── sensors.py          # Clase para gestión de sensores ADC
 │   ├── flight_controls.py  # Clase para servos (alerones, elevadores)
 │   ├── propulsion.py       # Clase para motor PWM
-│   ├── landing_gear.py     # Clase para tren a pasos
-│   ├── autopilot.py        # Lógica de piloto automático
-│   ├── telemetry.py        # Registro y visualización de datos
-│   └── ui_components.py    # Componentes de interfaz (progress bars, etc.)
-├── docs/
-│   ├── oscilograma.md      # Formas de onda y mediciones
-│   └── INTEGRATION.md      # Guía de integración de subsistemas
+│   └── landing_gear.py     # Clase para tren a pasos
 ├── assets/
-│   ├── wiring.mmd          # Diagrama completo del sistema
-│   └── architecture.mmd    # Arquitectura del software
-├── tools/
-│   └── telemetry_viewer.py # Script para visualizar datos guardados
+│   ├── wiring_a4988.mmd    # Diagrama con driver A4988
+│   └── wiring_uln2003.mmd  # Diagrama con driver ULN2003
 ├── PINES.md                # Resumen de pines
 └── README.md               # Esta documentación
 

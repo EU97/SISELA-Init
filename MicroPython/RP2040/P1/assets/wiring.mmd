@@ -1,0 +1,39 @@
+%% Diagrama de cableado (Mermaid) — P1 GPIO Básico (RP2040)
+flowchart LR
+    subgraph LEDs[LEDs de salida]
+        LED1[LED1 onboard]
+        LED2[LED2 externo]
+        LED3[LED3 externo]
+        R2[R 220Ω]
+        R3[R 220Ω]
+    end
+
+    subgraph Botones[Botones de entrada]
+        BTN1[BTN1]
+        BTN2[BTN2]
+    end
+
+    subgraph RP2040[Raspberry Pi Pico RP2040]
+        GP25[GP25 Pin 25<br/>LED onboard]
+        GP16[GP16 Pin 21]
+        GP17[GP17 Pin 22]
+        GP14[GP14 Pin 19<br/>PULL_UP]
+        GP15[GP15 Pin 20<br/>PULL_UP]
+        GND_E[GND]
+    end
+
+    GP25 --- LED1
+    GP16 --- R2 --- LED2
+    GP17 --- R3 --- LED3
+    LED1 --- GND_E
+    LED2 --- GND_E
+    LED3 --- GND_E
+
+    BTN1 --- GP14
+    BTN2 --- GP15
+    BTN1 --- GND_E
+    BTN2 --- GND_E
+
+    classDef note fill:#f5f5f5,stroke:#ddd,color:#333;
+    Note1:::note
+    Note1["GP25 = LED onboard (no requiere resistencia)<br/>BTN1/BTN2 activos LOW con pull-up interno"]

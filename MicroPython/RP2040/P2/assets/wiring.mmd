@@ -1,0 +1,23 @@
+%% Diagrama de cableado (Mermaid) — P2 ADC Potenciómetro (RP2040)
+flowchart LR
+    subgraph Sensor[Potenciómetro 10kΩ]
+        VCC_S[Terminal 1]
+        WIPER[Cursor / Wiper]
+        GND_S[Terminal 3]
+    end
+
+    subgraph RP2040[Raspberry Pi Pico RP2040]
+        V3V[3V3 Pin 36]
+        GND_E[GND Pin 38]
+        ADC26[GP26 Pin 31<br/>ADC0]
+    end
+
+    V3V --- VCC_S
+    WIPER --- ADC26
+    GND_S --- GND_E
+
+    classDef note fill:#f5f5f5,stroke:#ddd,color:#333;
+    classDef warn fill:#fff3cd,stroke:#ffc107,color:#333;
+    Note1:::warn
+    Note1["⚠️ RP2040 ADC: Solo 0-3.3V<br/>read_u16() devuelve 0-65535 (16 bits)<br/>NO conectar 5V al ADC"]
+    ADC26 --- Note1

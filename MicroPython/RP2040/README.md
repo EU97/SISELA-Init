@@ -31,17 +31,12 @@
 |---|--------|-------------|----------|--------|
 | **P1** | [GPIO Básico](./P1/) | LEDs, botones, menú interactivo | `boot.py`, `main.py`, `PINES.md`, `README.md` | 30 min |
 | **P2** | [ADC](./P2/) | Lectura analógica, filtro, CSV | `boot.py`, `main.py`, `PINES.md`, `README.md` | 45 min |
-
-### 📋 Con Guía de Migración
-
-| # | Nombre | Guía en | Dificultad | Tiempo Est. |
-|---|--------|---------|------------|-------------|
-| **P3** | Comunicación Serial | [`GUIA_MIGRACION.md`](./GUIA_MIGRACION.md#-p3---comunicación-serial-pendiente) | ⭐⭐ Media | 2-3h |
-| **P4** | Interrupciones | [`GUIA_MIGRACION.md`](./GUIA_MIGRACION.md#-p4---interrupciones-pendiente) | ⭐ Fácil | 1-2h |
-| **P5** | Servos PWM | [`GUIA_MIGRACION.md`](./GUIA_MIGRACION.md#-p5---servos-pwm-pendiente) | ⭐ Fácil | 1-2h |
-| **P6** | Motor PWM | [`GUIA_MIGRACION.md`](./GUIA_MIGRACION.md#-p6---motor-pwm-pendiente) | ⭐ Fácil | 1h |
-| **P7** | Steppers | [`GUIA_MIGRACION.md`](./GUIA_MIGRACION.md#-p7---steppers-pendiente) | ⭐⭐ Media | 2h |
-| **P8** | Sistema Integrado | [`GUIA_MIGRACION.md`](./GUIA_MIGRACION.md#-p8---sistema-integrado-aeronáutico-pendiente) | ⭐⭐⭐ Difícil | 4-6h |
+| **P3** | [Temperatura NTC/LM35](./P3/) | Medición temperatura, ecuación Beta, calibración | `boot.py`, `main.py`, `PINES.md`, `README.md` | 1-2h |
+| **P4** | [Presión MPX5500DP](./P4/) | Sensor presión, conversión ADC a kPa | `boot.py`, `main.py`, `PINES.md`, `README.md` | 1-2h |
+| **P5** | [Servos PWM](./P5/) | Control servomotores 50 Hz, barrido y pot | `boot.py`, `main.py`, `PINES.md`, `README.md`, `lib/servo.py` | 1-2h |
+| **P6** | [PWM Potencia](./P6/) | Conmutación MOSFET/BJT, control duty cycle | `boot.py`, `main.py`, `PINES.md`, `README.md` | 1h |
+| **P7** | [Steppers](./P7/) | A4988/ULN2003, homing, endstop | `boot.py`, `main.py`, `PINES.md`, `README.md`, `lib/` | 2h |
+| **P8** | [Sistema Integrado](./P8/) | Sensores + servos + motor + stepper | `boot.py`, `main.py`, `PINES.md`, `README.md`, `lib/` | 4-6h |
 
 ---
 
@@ -151,31 +146,13 @@ RP2040/
 │   └── main.py
 │
 ├── P1/                          ✅ COMPLETA
-│   ├── README.md
-│   ├── PINES.md
-│   ├── boot.py
-│   ├── main.py
-│   ├── pymakr.conf
-│   └── assets/
-│       └── wiring.mmd
-│
 ├── P2/                          ✅ COMPLETA
-│   ├── README.md
-│   ├── PINES.md
-│   ├── boot.py
-│   ├── main.py
-│   ├── pymakr.conf
-│   ├── docs/
-│   │   └── oscilograma.md
-│   └── assets/
-│       └── wiring.mmd
-│
-├── P3/                          📋 Con guía
-├── P4/                          📋 Con guía
-├── P5/                          📋 Con guía
-├── P6/                          📋 Con guía
-├── P7/                          📋 Con guía
-└── P8/                          📋 Con guía
+├── P3/                          ✅ COMPLETA
+├── P4/                          ✅ COMPLETA
+├── P5/                          ✅ COMPLETA
+├── P6/                          ✅ COMPLETA
+├── P7/                          ✅ COMPLETA
+└── P8/                          ✅ COMPLETA
 ```
 
 ---
@@ -188,17 +165,17 @@ RP2040/
 - [x] P2 - ADC
 - [x] Guías de migración P3-P8
 
-### 🔄 Fase 2: Comunicación y Control (En progreso)
-- [ ] P3 - UART/I2C/SPI
-- [ ] P4 - Interrupciones
+### ✅ Fase 2: Comunicación y Control (Completada)
+- [x] P3 - Temperatura NTC/LM35
+- [x] P4 - Presión MPX5500DP
 
-### ⏳ Fase 3: Actuadores (Pendiente)
-- [ ] P5 - Servos PWM
-- [ ] P6 - Motor PWM
-- [ ] P7 - Steppers
+### ✅ Fase 3: Actuadores (Completada)
+- [x] P5 - Servos PWM
+- [x] P6 - Motor PWM
+- [x] P7 - Steppers
 
-### ⏳ Fase 4: Integración (Pendiente)
-- [ ] P8 - Sistema Aeronáutico Integrado
+### ✅ Fase 4: Integración (Completada)
+- [x] P8 - Sistema Aeronáutico Integrado
 
 ### 🔮 Fase 5: Mejoras (Futuro)
 - [ ] Diagramas Mermaid para todas las prácticas
@@ -288,10 +265,10 @@ Material académico para uso educativo. Atribución requerida.
 
 ---
 
-**Última actualización**: Noviembre 3, 2025  
-**Versión**: 1.0  
+**Última actualización**: Febrero 17, 2026  
+**Versión**: 2.0  
 **Mantenedor**: EU97  
-**Estado**: 🟢 Operacional (P1-P2 completas, P3-P8 con guías)
+**Estado**: 🟢 Operacional (P1-P8 completas)
 
 ---
 
@@ -300,8 +277,8 @@ Material académico para uso educativo. Atribución requerida.
 ```mermaid
 graph TD
     A[P1: GPIO Básico] --> B[P2: ADC]
-    B --> C[P3: Comunicación]
-    C --> D[P4: Interrupciones]
+    B --> C[P3: Temperatura]
+    C --> D[P4: Presión]
     B --> E[P5: Servos PWM]
     E --> F[P6: Motor PWM]
     F --> G[P7: Steppers]
@@ -310,15 +287,15 @@ graph TD
     
     style A fill:#90EE90
     style B fill:#90EE90
-    style C fill:#FFD700
-    style D fill:#FFD700
-    style E fill:#FFD700
-    style F fill:#FFD700
-    style G fill:#FFD700
-    style H fill:#FFD700
+    style C fill:#90EE90
+    style D fill:#90EE90
+    style E fill:#90EE90
+    style F fill:#90EE90
+    style G fill:#90EE90
+    style H fill:#90EE90
 ```
 
-🟢 Verde = Completa | 🟡 Amarillo = Con guía de migración
+🟢 Verde = Completa
 
 ---
 

@@ -19,7 +19,7 @@ Conexión del sensor de presión piezoresistivo MPX5500DP al **RP2040** mediante
 | **Rango voltaje** | 0–3.3V (con atenuación 11dB) | 0–3.3V (fijo) |
 | **Configuración** | Requiere `atten()`, `width()` | No requiere configuración extra |
 | **Función lectura** | `adc.read()` | `adc.read_u16()` |
-| **Número de ADCs** | ADC1 (8 canales), ADC2 (10 canales) | 4 canales ADC (GP26-GP29) |
+| **Número de ADCs** | ADC1 (8 canales), ADC2 (10 canales) | 3 canales ADC externos (GP26-GP28) + ADC4 interno (temp) |
 
 ## Notas importantes
 

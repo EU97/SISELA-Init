@@ -61,9 +61,9 @@ graph LR
 	R3 -.-> note1
 ```
 
-### SVG ya incluido
+### SVG (generar desde Mermaid)
 
-Se incluye una versión SVG en `assets/wiring.svg` para visualizar sin soporte Mermaid.
+Para generar una versión SVG desde `assets/wiring.mmd`, sigue estos pasos:
 
 ### ¿Cómo generar el SVG/PNG desde Mermaid en Windows (PowerShell)?
 

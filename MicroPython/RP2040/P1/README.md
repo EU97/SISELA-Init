@@ -81,7 +81,7 @@ P1/
 - Pines por defecto:
   - LEDs: `LED1_PIN=25` (onboard), `LED2_PIN=16`, `LED3_PIN=17`
   - Botones: `BTN1_PIN=14`, `BTN2_PIN=15` (pull-up, activo LOW)
-- Ver esquema detallado en `PINES.md` y `assets/wiring.svg`
+- Ver esquema detallado en `PINES.md` y `assets/wiring.mmd`
 
 ## Verificación (criterios de aceptación)
 
