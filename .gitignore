@@ -35,6 +35,7 @@ dist/
 
 # Node (just in case)
 node_modules/
+reports/
 
 # Coverage / misc
 .coverage
