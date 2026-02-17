@@ -1,20 +1,19 @@
 %% Diagrama de cableado — P6 Conmutación de potencia (PWM + transistor)
 flowchart TB
   subgraph ESP32
-    PWM18[GPIO18 (PWM)] --> Rg[Res 220 Ω]
-    ADC34[GPIO34 (ADC) opcional]
+    PWM18["GPIO18 (PWM)"] --> Rg[Res 220 Ω]
+    ADC34["GPIO34 (ADC) opcional"]
     GNDuC[GND]
   end
 
   Rg --> G[Gate/Base]
   D[Drain/Colector] --> LOAD[Carga]
-  LOAD --> VPLUS[+V (5–12 V)]
+  LOAD --> VPLUS["+V (5–12 V)"]
   S[Source/Emisor] --> GNDp[GND fuente]
   GNDuC --- GNDp
 
   %% Diodo flyback para cargas inductivas
-  VPLUS ==|>|== D
-  note right of D: Diodo flyback (1N5819/1N4007) \n cátodo a +V, ánodo al drenador/colector
+  VPLUS -->|"Diodo flyback"| D
 
   classDef opt fill:#eef,stroke:#99f,color:#000;
   ADC34:::opt

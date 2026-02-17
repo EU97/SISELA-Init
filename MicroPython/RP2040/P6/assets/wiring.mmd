@@ -17,7 +17,7 @@ flowchart TB
   VSYS_PIN -.->|"Opcional\n(<500 mA)"| VPLUS
 
   %% Diodo flyback para cargas inductivas
-  VPLUS ==|>|== D
+  VPLUS -->|"Diodo flyback"| D
   note1[Diodo flyback 1N5819/1N4007\ncátodo a +V, ánodo al drenador]
 
   %% Potenciómetro opcional

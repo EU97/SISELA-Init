@@ -4,7 +4,7 @@ flowchart LR
     GP26[GP26 ADC0 Altitude]
     GP27[GP27 ADC1 Speed]
     GP28[GP28 ADC2 Attitude]
-    TEMP[ADC4 TEMP (Light)]
+    TEMP["ADC4 TEMP (Light)"]
     GP14[GP14 Servo Aileron]
     GP15[GP15 Servo Elevator]
     GP13[GP13 PWM Motor]
@@ -14,7 +14,7 @@ flowchart LR
     GP4[GP4 Endstop]
   end
 
-  subgraph SERVOS[Servos 5V (fuente externa)]
+  subgraph SERVOS["Servos 5V (fuente externa)"]
     S1[Servo Aileron]
     S2[Servo Elevator]
   end
@@ -29,7 +29,7 @@ flowchart LR
   subgraph STEPPER[A4988 Driver + NEMA17]
     ASTEP[STEP]
     ADIR[DIR]
-    AEN[EN (LOW=ON)]
+    AEN["EN (LOW=ON)"]
     VMOT[VMOT 12V]
     GNDST[GND]
     MTR[NEMA 17]
@@ -41,7 +41,7 @@ flowchart LR
     ATT[Actitud Pot]
   end
 
-  subgraph ENDSTOP[Endstop (NO → GND)]
+  subgraph ENDSTOP["Endstop (NO → GND)"]
     SW[Micro switch]
   end
 
@@ -59,7 +59,7 @@ flowchart LR
   GP13 -- Gate --> MOSFET
   VEXT --> MOTOR
   MOTOR -- a Dreno --> MOSFET
-  DIODE -. en paralelo a MOTOR (cátodo a +V) .-
+  DIODE -. "flyback en paralelo" .- MOTOR
 
   %% Stepper driver control
   GP18 --> ASTEP
@@ -87,5 +87,3 @@ flowchart LR
   PWMDRIVE --- GND
   STEPPER --- GND
   ENDSTOP --- GND
-
-  note over MCU,STEPPER: GND COMÚN entre RP2040, 5V servos y 12V motor

@@ -12,7 +12,7 @@ flowchart LR
     GP4[GP4 Endstop]
   end
 
-  subgraph SERVOS[Servos 5V (fuente externa)]
+  subgraph SERVOS["Servos 5V (fuente externa)"]
     S1[Servo Aileron]
     S2[Servo Elevator]
   end
@@ -33,7 +33,7 @@ flowchart LR
     V5M[+5V]
   end
 
-  subgraph ENDSTOP[Endstop (NO → GND)]
+  subgraph ENDSTOP["Endstop (NO → GND)"]
     SW[Micro switch]
   end
 
@@ -45,7 +45,7 @@ flowchart LR
   GP13 -- Gate --> MOSFET
   VEXT --> MOTOR
   MOTOR -- a Dreno --> MOSFET
-  DIODE -. en paralelo a MOTOR (cátodo a +V) .-
+  DIODE -. "flyback en paralelo" .- MOTOR
 
   %% Stepper ULN2003 control
   GP26 --> U1
@@ -72,5 +72,3 @@ flowchart LR
   PWMDRIVE --- GND
   STEPPER --- GND
   ENDSTOP --- GND
-
-  note over MCU,STEPPER: ADVERTENCIA: ULN2003 usa GP26–GP28; reubica ADC si los necesitas.
