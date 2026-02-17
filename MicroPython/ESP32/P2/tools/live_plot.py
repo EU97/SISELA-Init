@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """
-Live plotter for ESP32 ADC CSV output (P2).
+"""Live plotter for ESP32/RP2040 ADC CSV output (P2).
 
-Reads lines like:
-  t_ms,raw,avg,voltage_v,angle_deg
-  0,2048,2048,1.650,150.0
-and plots selected Y vs t_ms in real time.
+Reads CSV lines from the serial port and plots a selected column vs t_ms
+in real time using matplotlib.
+
+Supported CSV formats (auto-detected from header):
+  Compact:  t_ms,raw,avg,voltage_v,angle_deg
+  Extended: t_ms,raw,avg,voltage_v,angle_deg,flap_deg,ssm,arinc_hex
 
 Usage (Windows PowerShell):
   python .\live_plot.py --port COM3 --baud 115200 --y voltage_v
+  python .\live_plot.py --port COM3 --baud 115200 --y flap_deg
 
 Install deps:
   python -m pip install -r requirements.txt
@@ -29,8 +32,9 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Live plot from ESP32 CSV over serial")
     p.add_argument("--port", required=True, help="Serial port (e.g., COM3)")
     p.add_argument("--baud", type=int, default=115200, help="Baudrate (default: 115200)")
-    p.add_argument("--y", default="voltage_v", choices=["raw", "avg", "voltage_v", "angle_deg"],
-                   help="Y variable to plot vs t_ms")
+    p.add_argument("--y", default="voltage_v",
+                   choices=["raw", "avg", "voltage_v", "angle_deg", "flap_deg"],
+                   help="Y variable to plot vs t_ms (flap_deg requires extended CSV)")
     p.add_argument("--window", type=int, default=1000, help="Plot window in ms (time range visible)")
     p.add_argument("--max-points", type=int, default=2000, help="Max points to keep in memory (ring buffer)")
     p.add_argument("--no-header", action="store_true", help="If set, do not expect a header line")
@@ -49,7 +53,7 @@ class SerialReader(threading.Thread):
         self.stop_flag = threading.Event()
         self.ser: Optional[serial.Serial] = None
         self.header_map: Dict[str, int] = {}
-        self.buffer: Deque[List[float]] = deque(maxlen=5000)
+        self.buffer: Deque[Dict[str, float]] = deque(maxlen=5000)
 
     def run(self) -> None:
         try:
@@ -104,23 +108,30 @@ class SerialReader(threading.Thread):
             return True
         return False
 
-    def _parse_row(self, line: str) -> Optional[List[float]]:
+    def _parse_row(self, line: str) -> Optional[Dict[str, float]]:
         parts = [p.strip() for p in line.split(",")]
-        if len(parts) < 2:
+        if len(parts) < 5:
             return None
         try:
-            # If header known, map indices; else assume fixed order
             if self.header_map:
-                t = float(parts[self.header_map.get("t_ms", 0)])
-                raw = float(parts[self.header_map.get("raw", 1)])
-                avg = float(parts[self.header_map.get("avg", 2)])
-                v = float(parts[self.header_map.get("voltage_v", 3)])
-                ang = float(parts[self.header_map.get("angle_deg", 4)])
+                row: Dict[str, float] = {}
+                for name, idx in self.header_map.items():
+                    if idx < len(parts):
+                        val = parts[idx]
+                        # Skip non-numeric columns (ssm, arinc_hex)
+                        if name in ("ssm", "arinc_hex"):
+                            continue
+                        row[name] = float(val)
+                return row if "t_ms" in row else None
             else:
-                # Fallback fixed order
-                t = float(parts[0]); raw = float(parts[1]); avg = float(parts[2])
-                v = float(parts[3]); ang = float(parts[4])
-            return [t, raw, avg, v, ang]
+                # Fallback fixed order (compact format)
+                return {
+                    "t_ms": float(parts[0]),
+                    "raw": float(parts[1]),
+                    "avg": float(parts[2]),
+                    "voltage_v": float(parts[3]),
+                    "angle_deg": float(parts[4]),
+                }
         except Exception:
             return None
 
@@ -129,14 +140,6 @@ class SerialReader(threading.Thread):
 
 # -------- Plotting --------
 
-Y_INDEX = {
-    "raw": 1,
-    "avg": 2,
-    "voltage_v": 3,
-    "angle_deg": 4,
-}
-
-
 def main() -> None:
     args = parse_args()
 
@@ -144,7 +147,7 @@ def main() -> None:
     reader.start()
 
     fig, ax = plt.subplots(figsize=(9, 4))
-    ax.set_title(f"ESP32 Live: {args.y} vs t_ms @ {args.baud}baud")
+    ax.set_title(f"ADC Live: {args.y} vs t_ms @ {args.baud}baud")
     ax.set_xlabel("t (ms)")
     ax.set_ylabel(args.y)
 
@@ -152,15 +155,18 @@ def main() -> None:
     ydata: Deque[float] = deque(maxlen=args.max_points)
     (line,) = ax.plot([], [], lw=1.5)
 
-    y_idx = Y_INDEX[args.y]
+    y_key = args.y
     t_window = max(100, int(args.window))
 
     def update_plot(_frame: int):
         # Drain buffer efficiently
         while reader.buffer:
-            t, raw, avg, v, ang = reader.buffer.popleft()
-            xdata.append(t)
-            ydata.append((raw, avg, v, ang)[y_idx - 1])
+            row = reader.buffer.popleft()
+            t_val = row.get("t_ms")
+            y_val = row.get(y_key)
+            if t_val is not None and y_val is not None:
+                xdata.append(t_val)
+                ydata.append(y_val)
 
         if not xdata:
             return line,
