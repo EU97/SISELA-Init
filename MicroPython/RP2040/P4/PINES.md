@@ -1,115 +1,47 @@
-# Mapa de pines — Práctica 4: MPX5500DP (RP2040)
+# Tabla de Pines — Práctica 4 (RP2040 — Raspberry Pi Pico)
 
-Conexión del sensor de presión piezoresistivo MPX5500DP al **RP2040** mediante ADC.
+## Sensor: BMP180 (Presión Barométrica + Temperatura)
 
-## Tabla de conexiones
+| Pin RP2040 | Pin físico | Pin BMP180 | Función | Notas |
+|------------|------------|------------|---------|-------|
+| **GP0** | 1 | SDA | I2C Data | I2C0 SDA por defecto |
+| **GP1** | 2 | SCL | I2C Clock | I2C0 SCL por defecto |
+| **3V3(OUT)** | 36 | VCC | Alimentación | 3.3 V regulados |
+| **GND** | 38 | GND | Tierra | Referencia común |
 
-| Señal | Pin RP2040 | Dispositivo externo | Descripción |
-|-------|------------|---------------------|-------------|
-| **ADC_IN** | **GP26** (ADC0) | MPX5500DP Vout (pin 3) | Salida analógica del sensor (0.66–3.3V @ VS=3.3V) |
-| 3V3(OUT) | 3V3(OUT) | MPX5500DP VS (pin 2) | Alimentación del sensor 3.3V |
-| GND | GND | MPX5500DP GND (pin 1) | Tierra común |
-
-## 🔄 Diferencias con ESP32
-
-| Aspecto | ESP32 | RP2040 |
-|---------|-------|--------|
-| **Pin ADC** | GPIO34 (ADC1_CH6) | GP26 (ADC0) |
-| **Resolución ADC** | 12 bits (0–4095) | 16 bits (0–65535) |
-| **Rango voltaje** | 0–3.3V (con atenuación 11dB) | 0–3.3V (fijo) |
-| **Configuración** | Requiere `atten()`, `width()` | No requiere configuración extra |
-| **Función lectura** | `adc.read()` | `adc.read_u16()` |
-| **Número de ADCs** | ADC1 (8 canales), ADC2 (10 canales) | 3 canales ADC externos (GP26-GP28) + ADC4 interno (temp) |
-
-## Notas importantes
-
-- **GP26 (ADC0)**: Pin multiuso que puede ser GPIO digital o entrada ADC.
-- **Sin atenuación**: El RP2040 siempre mide 0–3.3V (no hay atenuación configurable).
-- **Resolución superior**: 16 bits (65535 valores) vs 12 bits ESP32 (4095 valores).
-- **Promediado**: 50 muestras por lectura para reducir ruido del ADC.
-- **Alimentación del sensor (VS)**: El MPX5500DP especifica **VS = 4.75–5.25V** para máxima precisión. Con VS=3.3V:
-  - El sensor sigue funcionando.
-  - La sensibilidad disminuye a ~66% del nominal.
-  - Rango de salida: ~0.66V (20 kPa) a ~2.1V (520 kPa).
-  - **Solución recomendada**: Alimentar con VSYS (5V USB) y usar divisor resistivo 10kΩ+10kΩ para proteger ADC.
-
-## Pinout MPX5500DP (SOT-223)
+## Diagrama de conexión
 
 ```
-Vista frontal (cara con marcado):
- _____
-|  1  |  GND (tierra)
-|  2  |  VS (alimentación, 4.75–5.25V nominal)
-|  3  |  Vout (salida analógica proporcional a presión)
-|_____|
+Raspberry Pi Pico          BMP180 Módulo
+┌──────────────┐          ┌───────────┐
+│ 3V3(OUT) [36]├─────────►│ VCC       │
+│ GND      [38]├─────────►│ GND       │
+│ GP0(SDA) [ 1]├──────────│ SDA       │  (I2C Data)
+│ GP1(SCL) [ 2]├──────────│ SCL       │  (I2C Clock)
+└──────────────┘          └───────────┘
 ```
 
-## Pinout RP2040 relevante
+## Notas técnicas
 
-```
-         RP2040 (Raspberry Pi Pico)
-    ┌─────────────────────┐
-    │                     │
-GP26│ ADC0 ●              │ ADC usado para MPX5500DP
-GP27│ ADC1 ●              │ (otros 3 canales ADC disponibles)
-GP28│ ADC2 ●              │
-    │      ●  ADC_VREF    │
-    │                     │
-    │      ● 3V3(OUT)     │ Alimentación sensor (3.3V)
-    │      ● GND          │ Tierra común
-    │      ● VSYS         │ 5V (para alimentar sensor con divisor)
-    └─────────────────────┘
-```
+### Protocolo I2C
+- **Dirección**: `0x77` (fija, no configurable en BMP180)
+- **Frecuencia**: 100 kHz (estándar) — soporta hasta 3.4 MHz
+- **Pull-ups**: El módulo GY-68 incluye resistencias de pull-up de 4.7 kΩ
+- **Bus**: I2C0 del RP2040 (GP0=SDA, GP1=SCL)
 
-## Diagrama de conexiones
+### Pines I2C alternativos (RP2040)
+El RP2040 permite reasignar I2C a otros pines:
+- I2C0: GP0/GP1, GP4/GP5, GP8/GP9, GP12/GP13, GP16/GP17, GP20/GP21
+- I2C1: GP2/GP3, GP6/GP7, GP10/GP11, GP14/GP15, GP18/GP19, GP26/GP27
 
-Ver **[assets/wiring.svg](assets/wiring.svg)** para diagrama visual completo.
+### Sobre el sensor
+- **Tipo**: MEMS piezoresistivo (puente Wheatstone)
+- **Rango presión**: 300–1100 hPa
+- **Rango temperatura**: –40 a +85 °C
+- **Resolución**: hasta 0.01 hPa (modo ultra-alta resolución)
+- **Calibración**: 11 coeficientes en EEPROM (AC1–AC6, B1, B2, MB, MC, MD)
 
-Para editar el diagrama fuente: **[assets/wiring.mmd](assets/wiring.mmd)** (formato Mermaid).
-
-### Generar diagrama estático
-
-```bash
-npm install -g @mermaid-js/mermaid-cli
-mmdc -i assets/wiring.mmd -o assets/wiring.svg -b transparent
-```
-
-## Relación con modos del programa
-
-| Modo | Usa calibración | Salida |
-|------|-----------------|--------|
-| 1 (ADC crudo) | No | Valor digital 0–65535 |
-| 2 (Voltaje) | Opcional | 0–3.3V (corregido si calibración activa) |
-| 3 (Presión kPa) | Opcional | 20–520 kPa (USA voltaje calibrado si activo) |
-| 4 (CSV monitor) | Opcional | Timestamp, ADC, V, kPa |
-| 5 (Calibración wizard) | N/A | Medición interactiva GND/3V3 |
-
-## Calibración rápida (opcional)
-
-1. Ejecuta **Modo 5** del programa.
-2. Sigue instrucciones interactivas (conectar GP26 a GND, luego a 3V3).
-3. Se guarda `calibration.json` con valores ADC medidos.
-4. Para usar automáticamente, cambia `AUTO_USE_CALIBRATION = True` en `main.py`.
-
-**Mejora**: Offset y ganancia lineales. **No corrige**: No linealidad completa del ADC RP2040.
-
-Ver [**../_template/CALIBRACION.md**](../_template/CALIBRACION.md) para detalles teóricos.
-
-## Comparativa de conversión ADC
-
-### ESP32 (12 bits)
-```python
-voltage = (adc.read() / 4095.0) * 3.3  # 0-4095 → 0-3.3V
-```
-
-### RP2040 (16 bits)
-```python
-voltage = (adc.read_u16() / 65535.0) * 3.3  # 0-65535 → 0-3.3V
-```
-
-## Referencias
-
-- **MPX5500DP Datasheet**: https://www.nxp.com/docs/en/data-sheet/MPX5500.pdf
-- **RP2040 Datasheet**: https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
-- **Raspberry Pi Pico Pinout**: https://www.raspberrypi.com/documentation/microcontrollers/raspberry-pi-pico.html
-- **MicroPython RP2040**: https://docs.micropython.org/en/latest/rp2/quickref.html#adc-analog-to-digital-conversion
+### Alimentación
+- El BMP180 opera a 1.8–3.6 V nativo
+- El módulo GY-68 incluye regulador LDO → acepta 3.3 V o 5 V en pin VCC
+- Consumo: ~5 µA en modo estándar, ~0.1 µA en standby

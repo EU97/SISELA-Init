@@ -36,9 +36,9 @@ static const Pins PINS_TABLE_ESP32[9] = {
     /*a4988*/{-1,-1,-1},
     /*uln2003*/{-1,-1,-1,-1}
   },
-  // 4: P4 — MPX5500DP (ADC)
+  // 4: P4 — BMP180 (I2C: SDA=21, SCL=22)
   {
-    /*adc_altitude*/34, /*adc_speed*/-1, /*adc_attitude*/-1, /*adc_light*/-1,
+    /*adc_altitude*/-1, /*adc_speed*/-1, /*adc_attitude*/-1, /*adc_light*/-1,
     /*servo_aileron*/-1, /*servo_elevator*/-1,
     /*pwm_motor*/-1,
     /*endstop*/-1,

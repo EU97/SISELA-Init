@@ -1,3 +1,2 @@
 pyserial>=3.5
-matplotlib>=3.5.0
-numpy>=1.21.0
+# tkinter viene incluido con Python 3 estándar
