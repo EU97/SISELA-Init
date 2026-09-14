@@ -6,7 +6,9 @@ Scripts Python para visualizar datos del sensor BMP180 en tiempo real.
 
 - `altimeter_gui.py`: Altímetro barométrico estilo aeronáutico (tkinter).
 - `requirements.txt`: Dependencias Python necesarias.
-- `live_plot.py`: Graficador legacy (formato anterior).
+
+Para análisis de señales (modos 6 y 7: ruido, muestreo, espectro, filtrado)
+usa la toolkit compartida [`tools/sisela_signal/`](../../../../tools/sisela_signal/README.md).
 
 ## Instalación
 

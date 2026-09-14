@@ -1,0 +1,115 @@
+% ============================================================================
+% preamble.tex — Estilo común de los manuales de práctica SISELA (FIME / UANL)
+%
+% Reproduce (de forma aproximada) el estilo de los PDF originales
+% (~/Descargas/manuales/Manuales/pN.pdf), de los que no existe fuente .tex.
+% Compilar con:  pdflatex  (o  latexmk -pdf pN.tex)
+% ============================================================================
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-tabla]{babel}
+\usepackage[a4paper,margin=2.5cm,headheight=15pt]{geometry}
+
+% --- Tipografía: serif para el cuerpo, sans para los títulos ---
+\usepackage{libertinus}
+\usepackage[scaled=0.92]{helvet}   % sans para encabezados
+\usepackage{microtype}
+
+% --- Matemáticas ---
+\usepackage{amsmath,amssymb}
+\usepackage{siunitx}
+\sisetup{detect-all, per-mode=symbol}
+
+% --- Tablas y figuras ---
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{caption}
+\captionsetup{font=small,labelfont=bf,labelsep=period}
+\usepackage{graphicx}
+\usepackage{float}
+
+% --- Diagramas ---
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric,arrows.meta,positioning,calc}
+\tikzset{
+  block/.style   = {draw, rectangle, minimum width=2.6cm, minimum height=0.9cm,
+                    align=center, font=\footnotesize},
+  term/.style    = {draw, rounded corners, minimum width=2.2cm, minimum height=0.8cm,
+                    align=center, font=\footnotesize, fill=black!5},
+  decision/.style= {draw, diamond, aspect=2, align=center, font=\scriptsize,
+                    inner sep=1pt},
+  flow/.style    = {-{Latex[length=2mm]}, thick},
+}
+
+% --- Código ---
+\usepackage{xcolor}
+\definecolor{codebg}{gray}{0.96}
+\definecolor{codekw}{rgb}{0.13,0.29,0.53}
+\definecolor{codecm}{rgb}{0.40,0.45,0.40}
+\usepackage{listings}
+\lstdefinestyle{sisela}{
+  backgroundcolor=\color{codebg}, basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{codekw}\bfseries, commentstyle=\color{codecm}\itshape,
+  stringstyle=\color{codekw}, numbers=left, numberstyle=\tiny\color{gray},
+  numbersep=6pt, frame=none, breaklines=true, showstringspaces=false,
+  columns=fullflexible, xleftmargin=1.8em, aboveskip=1em, belowskip=1em,
+  literate={á}{{\'a}}1 {é}{{\'e}}1 {í}{{\'i}}1 {ó}{{\'o}}1 {ú}{{\'u}}1
+           {ñ}{{\~n}}1 {Á}{{\'A}}1 {°}{{\textdegree}}1 {µ}{{$\mu$}}1
+           {✓}{{\checkmark}}1,
+}
+\lstset{style=sisela}
+\newcommand{\code}[1]{\texttt{\small #1}}
+
+% --- Listas ---
+\usepackage{enumitem}
+\setlist{nosep, leftmargin=1.6em}
+
+% --- Encabezado / pie de página ---
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\footnotesize\sffamily Sistemas Eléctricos de Aeronaves — Práctica \practnum}
+\fancyhead[R]{\footnotesize\sffamily FIME / UANL}
+\fancyfoot[C]{\footnotesize P\'agina \thepage\ de \pageref{LastPage}}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+% --- Títulos de sección en sans-serif ---
+\usepackage{titlesec}
+\titleformat{\section}{\normalfont\Large\sffamily\bfseries}{\thesection}{0.7em}{}
+\titleformat{\subsection}{\normalfont\large\sffamily\bfseries}{\thesubsection}{0.6em}{}
+\titleformat{\subsubsection}{\normalfont\normalsize\sffamily\bfseries}{\thesubsubsection}{0.5em}{}
+
+% --- hyperref al final ---
+\usepackage[hidelinks,pdfusetitle]{hyperref}
+
+% ============================================================================
+% Comandos de portada y cajas
+% ============================================================================
+\newcommand{\practnum}{N}          % lo redefine cada pN.tex
+\newcommand{\practtitle}{}         % idem
+
+\newcommand{\portada}{%
+  \thispagestyle{empty}
+  \begin{center}
+    {\large Universidad Autónoma de Nuevo León}\\[2pt]
+    {\normalsize Facultad de Ingeniería Mecánica y Eléctrica}\\[2.2cm]
+    \rule{\linewidth}{0.4pt}\\[0.4cm]
+    {\Huge\sffamily\bfseries Práctica \practnum}\\[0.5cm]
+    {\large \practtitle}\\[0.3cm]
+    \rule{\linewidth}{0.4pt}\\[2.5cm]
+    {\normalsize Laboratorio de Sistemas Electrónicos de Aeronaves\\(SISELA)}\\[1.5cm]
+    {\normalsize Ciclo Escolar 2026}\\[3cm]
+  \end{center}
+}
+
+\newenvironment{resumen}{\par\noindent\rule{\linewidth}{0.4pt}\par\smallskip
+  \small\itshape\noindent\textbf{Resumen Ejecutivo} ---\ }{\par\smallskip
+  \noindent\rule{\linewidth}{0.4pt}\par}
+
+\newenvironment{nota}[1][Nota]{\par\smallskip\noindent\rule{\linewidth}{0.4pt}\par\smallskip
+  \small\itshape\noindent\textbf{#1} ---\ }{\par\smallskip
+  \noindent\rule{\linewidth}{0.4pt}\par\smallskip}

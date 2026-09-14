@@ -74,12 +74,33 @@ Conexión: contacto normalmente abierto (NO) que cierra a GND al activarse.
 
 ---
 
+## Módulo opcional — Dron con motores 2212 (ESC)
+
+Solo si `ENABLE_DRONE = True` en `main.py`. Requiere 4× ESC + motores 2212
+(ver [docs/dron_2212.md](docs/dron_2212.md)).
+
+| Motor | Pin RP2040 | Señal |
+|---|---|---|
+| M1 (front-left, CW) | GP6 | PWM 50 Hz, 1000–2000 µs |
+| M2 (front-right, CCW) | GP7 | PWM 50 Hz, 1000–2000 µs |
+| M3 (rear-left, CCW) | GP8 | PWM 50 Hz, 1000–2000 µs |
+| M4 (rear-right, CW) | GP9 | PWM 50 Hz, 1000–2000 µs |
+
+**Alimentación de los motores**: LiPo 3S dedicada, **nunca** desde el RP2040
+(ni siquiera VSYS). GND del ESC común con el RP2040 (solo referencia de señal).
+
+---
+
 ## Resumen de pines ocupados (configuración por defecto)
 
 | GPIO | Función                      |
 |------|------------------------------|
 | GP4  | Endstop (tren)               |
 | GP5  | EN (stepper A4988)           |
+| GP6  | [opcional] ESC M1 (dron)     |
+| GP7  | [opcional] ESC M2 (dron)     |
+| GP8  | [opcional] ESC M3 (dron)     |
+| GP9  | [opcional] ESC M4 (dron)     |
 | GP13 | PWM Motor                    |
 | GP14 | Servo Alerón                 |
 | GP15 | Servo Elevador               |

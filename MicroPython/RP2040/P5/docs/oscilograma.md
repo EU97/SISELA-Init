@@ -316,12 +316,25 @@ Fuente 5V 2A → Servo VCC (rojo)
 - Verifica con osciloscopio que 5V no tenga caídas >0.2V durante movimiento
 - Si hay caídas mayores, aumenta el capacitor (1000 µF) o usa fuente de mayor corriente
 
+## Análisis de señales (modos 5–7)
+
+Guía completa: [analisis_senales.md](analisis_senales.md). Resumen:
+
+| Modo | Punto de sonda | Medida / toolkit PC |
+|---|---|---|
+| 5 Jitter PWM | CH1 → GP18 | *Pulse Width → StdDev* (RP2040 ≈ **10 ns**); `characterize --scope` |
+| 6 Muestreo/aliasing | generador → GP26 (seno, offset 1.65 V) | `spectrum --metrics`, `alias --true-f <f_gen>` |
+| 7 Escalón servo-lazo | potenciómetro de realimentación → GP26 | `characterize --mode step` |
+
+El buen desempeño del RP2040 en el modo 5 (jitter ~10× menor que el ESP32) se debe al
+*hardware PWM slice*; el modo 6 aprovecha la planificación determinista por `ticks_us`.
+
 ## Recursos adicionales
 
 - **RP2040 Datasheet** (Sección 4.5 PWM): https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
 - **MicroPython PWM RP2040**: https://docs.micropython.org/en/latest/rp2/quickref.html#pwm-pulse-width-modulation
 - **Servo Theory**: https://www.arduino.cc/en/Tutorial/LibraryExamples/Sweep
-- **Guía de migración ESP32→RP2040**: [../../GUIA_MIGRACION.md](../../GUIA_MIGRACION.md)
+- **Toolkit de análisis de señales**: [`tools/sisela_signal/`](../../../../tools/sisela_signal/README.md)
 
 ---
 

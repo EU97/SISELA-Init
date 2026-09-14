@@ -1,0 +1,8 @@
+# sisela_signal — toolkit de análisis de señales (P4–P8)
+numpy>=1.23
+scipy>=1.9
+matplotlib>=3.6
+pyserial>=3.5
+
+# desarrollo / pruebas
+pytest>=7.0

@@ -209,89 +209,65 @@ Modo 5: Guía interactiva para calibrar el ADC (offset/ganancia).
 
 ---
 
-## Práctica 4: Medición de Presión con ADC (MPX5500DP)
+## Práctica 4: Altímetro Barométrico con Sensor Digital BMP180 (I2C)
 
-**Archivo:** `MicroPython/RP2040/P4/main.py`
+**Archivos:** `MicroPython/{ESP32,RP2040}/P4/main.py`, `lib/bmp180.py`, `lib/siglab.py`
 
-### Funciones principales
+> Nota histórica: la P4 usó antes el sensor analógico **MPX5500DP** (leído por ADC).
+> Desde los commits `e4f6e33` / `c7b7709` la práctica emplea el sensor digital
+> **BMP180** por I2C. La documentación de aquel sensor se retiró.
 
-#### `load_calibration()`
-Carga parámetros de calibración desde JSON.
-- **Archivo:** `calibration.json`
-- **Retorna:** `dict` o `None`
+### Driver `lib/bmp180.py` — clase `BMP180`
 
-#### `save_calibration(data)`
-Guarda parámetros de calibración a JSON.
-- **Parámetros:** `data` (dict) - Datos de calibración
+| Método | Descripción |
+|---|---|
+| `__init__(i2c, addr=0x77, oss=1)` | Verifica el chip ID (0x55) y lee los 11 coeficientes de calibración de la EEPROM (0xAA–0xBF). |
+| `get_calibration()` | Diccionario con `AC1..AC6, B1, B2, MB, MC, MD`. |
+| `read_raw_temp()` / `read_raw_pressure()` | Lecturas sin compensar `UT` / `UP` (esta última desplazada según `oss`). |
+| `temperature()` / `pressure()` / `altitude(p0)` | Magnitudes compensadas (°C / Pa / m). |
+| `temperature_detailed()` / `pressure_detailed()` | Devuelven todos los pasos intermedios (`X1, X2, B3..B7`) para verificación paso a paso. |
+| `read_all(p0)` | `(temp_C, pressure_Pa, altitude_m)` en un solo ciclo I2C. |
+| `sea_level_pressure(altitude_m)` | Deriva el QNH a partir de una altitud conocida (`P₀ = P / (1 − h/44330)^5.255`). |
 
-#### `adc_to_voltage(raw, calib=None)`
-Convierte lectura ADC cruda a voltaje con calibración opcional.
-- **Parámetros:**
-  - `raw` (int) - Valor ADC (0-65535)
-  - `calib` (dict, opcional) - Parámetros de calibración
-- **Retorna:** `float` - Voltaje en V
-- **Mapeo calibrado:** Si calib contiene `adc_low` y `adc_high`, mapea linealmente a 0-3.3V
-
-#### `read_adc_avg(n=ADC_SAMPLES)`
-Lee n muestras del ADC y devuelve el promedio.
-- **Parámetros:** `n` (int) - Número de muestras (50 por defecto)
-- **Retorna:** `int` - Promedio de lecturas
-- **Uso:** Reducción de ruido mediante sobremuestreo (50 muestras → mejora ~7× en SNR)
-
-#### `voltage_to_pressure_kpa(voltage)`
-Convierte voltaje del sensor MPX5500DP a presión (kPa).
-- **Parámetros:** `voltage` (float) - Voltaje del sensor (V)
-- **Retorna:** `float` - Presión en kPa
-- **Transfer function:** `P(kPa) = (Vout - Vmin) / sensitivity + Pmin`
-- **Rango:** 20-520 kPa
-- **Nota:** Para VS=3.3V, sensibilidad disminuye a ~66% del nominal (óptimo: VS=5V)
-
-#### `menu_select(timeout_s=6)`
-Muestra menú de modos y espera selección con timeout.
-- **Parámetros:** `timeout_s` (int) - Timeout en segundos
-- **Retorna:** `str` o `None`
-
-#### `check_menu_break()`
-Verifica si el usuario escribió 'm' para regresar al menú.
-- **Retorna:** `bool`
+Compensación: aritmética entera de 32 bits idéntica al *datasheet* Bosch; altitud por
+la fórmula ISA `h = 44330·(1 − (P/P₀)^(1/5.255))`.
 
 ### Modos de operación
 
-#### `mode_raw_adc()`
-Modo 1: Lectura ADC cruda continua.
-- **Salida:** `ADC: XXXXX (0-65535)`
+| Modo | Nombre | Salida |
+|---|---|---|
+| 1 | Datos crudos + coeficientes | 11 coeficientes + `UT`, `UP` |
+| 2 | T y P compensadas | pasos del algoritmo + `T`, `P` continuas |
+| 3 | Altímetro barométrico | altitud m/ft, ajuste QNH (`q`) o por altitud conocida (`aXXX`) |
+| 4 | Monitor CSV | `timestamp_ms,temp_C,pressure_hPa,altitude_m` (para `tools/altimeter_gui.py`) |
+| 5 | Comparativa de alturas | promedio de 10 muestras/punto, σ, Δh entre puntos |
+| **6** | **Análisis de ruido y muestreo** | bloque de N muestras de altitud a Fs fija (`siglab.BlockSampler`): Fs real, jitter, σ, RMS, resolución efectiva + CSV `t_us,alt_m` |
+| **7** | **Filtro digital en vivo** | CSV `t_us,alt_raw,alt_filt` aplicando media móvil / mediana / EMA (`siglab.MovAvg/Median/Ema`) |
 
-#### `mode_voltage()`
-Modo 2: Voltaje del sensor (V).
-- **Salida:** `Voltaje: X.XXX V  (ADC: XXXXX)`
+### Utilidades de análisis en la placa — `lib/siglab.py`
 
-#### `mode_pressure()`
-Modo 3: Presión en kPa.
-- **Salida:** `Presión: XXX.XX kPa  (V: X.XXX, ADC: XXXXX)`
-
-#### `mode_csv_monitor()`
-Modo 4: Monitor CSV continuo para visualización.
-- **Salida:** `timestamp_ms,adc_raw,voltage_V,pressure_kPa`
-- **Frecuencia:** 10 Hz (configurable)
-
-#### `mode_calibration_wizard()`
-Modo 5: Asistente de calibración ADC.
-- **Procedimiento:**
-  1. Conectar GP26 a GND → medir LOW
-  2. Conectar GP26 a 3V3 → medir HIGH
-  3. Guardar en `calibration.json`
+`BlockSampler`, `stream_csv` (adquisición a Fs fija con `ticks_us`), `Stats` (media/σ/RMS/pp
+incrementales, resolución efectiva en bits), `MovAvg`/`Median`/`Ema`, `goertzel` (potencia de
+un bin), `thd_hint`. Los modos 6–7 alimentan la toolkit PC `tools/sisela_signal/`
+(espectro, PSD, Allan, filtros, respuesta al escalón).
 
 ### Configuración de hardware
-- **Sensor:** MPX5500DP (piezoresistivo, 20-520 kPa)
-- **Alimentación:** VS=3.3V (óptimo: 4.75-5.25V con divisor)
-- **Conexión:** Vout (sensor) → GP26 (ADC0)
-- **Transfer function:** `Vout = VS × (0.2 × P + 0.2)` donde P en kPa
+- **Sensor:** BMP180 / módulo GY-68 (I2C 0x77, regulador y pull-ups integrados).
+- **Pines I2C:** ESP32 SDA=GPIO21 / SCL=GPIO22; RP2040 (MicroPython) SDA=GP0 / SCL=GP1;
+  C++/Arduino-Pico SDA=GP4 / SCL=GP5.
+- **Alimentación:** 3V3 directo. `oss` (0–3) intercambia velocidad por ruido: 4.5–25.5 ms/lectura.
 
 ---
 
 ## Práctica 5: Control PWM de Servomotores
 
 **Archivo:** `MicroPython/RP2040/P5/main.py`
+
+> **Modos de análisis de señales añadidos:** 5) Jitter de PWM (medición con
+> osciloscopio, `duty_u16` de referencia), 6) Muestreo y aliasing (seno del
+> generador → ADC, `siglab.BlockSampler`, CSV `t_us,counts,v`), 7) Respuesta al
+> escalón del servo-lazo (realimentación de posición por ADC). Procesado en la PC
+> con `tools/sisela_signal/` (`spectrum`, `alias`, `characterize`, `scope`).
 
 ### Funciones principales
 
@@ -790,6 +766,9 @@ Ambas plataformas son complementarias y el código MicroPython es **altamente po
 
 ---
 
-**Última actualización:** 2025-11-04  
-**Repositorio:** SISELA-Init  
+**Última actualización:** 2026-09-10 (P4 → BMP180; modos de análisis de señales en P4–P5)
+**Repositorio:** SISELA-Init
 **Plataforma:** RP2040 (Raspberry Pi Pico) + MicroPython v1.24+
+**Nota de alcance:** este documento describe principalmente la variante RP2040/MicroPython.
+Ver [`docs/VERIFICACION_PRACTICAS.md`](docs/VERIFICACION_PRACTICAS.md) para la auditoría
+cruzada de las 4 implementaciones.

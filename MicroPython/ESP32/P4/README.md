@@ -36,6 +36,22 @@ Ver [PINES.md](PINES.md) para detalles técnicos.
 | **3** | Altímetro barométrico | Altitud en m/ft con ajuste QNH ('q' para QNH, 'aXXX' para calibrar) |
 | **4** | Monitor CSV | `timestamp_ms,temp_C,pressure_hPa,altitude_m` para visualización |
 | **5** | Comparativa de alturas | Medición guiada a distintos niveles con promediado y estadísticas |
+| **6** | Análisis de ruido y muestreo | Bloque de N muestras a Fs fija (`lib/siglab.py`): Fs real, jitter, σ, resolución efectiva + CSV |
+| **7** | Filtro digital en vivo | CSV `t_us,alt_raw,alt_filt` (media móvil / mediana / EMA) para comparar en la PC |
+
+## Análisis de señales (modos 6–7)
+
+El BMP180 es digital: no se inyecta señal con el generador. El análisis se hace sobre la
+serie temporal de altitud/presión y sobre el bus I2C con el osciloscopio. Procesado en
+la PC con la toolkit [`tools/sisela_signal/`](../../../tools/sisela_signal/README.md):
+
+```bash
+python -m sisela_signal spectrum     --file cap.csv --col alt_m --psd
+python -m sisela_signal characterize  --file cap.csv --col alt_m --mode allan
+python -m sisela_signal filter        --file cap.csv --col alt_raw --kind movavg --n 8 --bode
+```
+
+Guía completa: [docs/analisis_senales.md](docs/analisis_senales.md).
 
 ## Estructura de archivos
 

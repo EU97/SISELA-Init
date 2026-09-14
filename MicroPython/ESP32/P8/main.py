@@ -11,6 +11,25 @@ from lib.flight_controls import FlightControls
 from lib.propulsion import PropulsionSystem
 from lib.landing_gear import LandingGear
 
+# Módulos opcionales: dron con motores 2212 + análisis de señales.
+# Se importan de forma perezosa (guardada) para no romper la práctica base
+# si algún archivo no está presente en /lib.
+try:
+    from lib.esc import QuadESC
+    HAVE_ESC = True
+except ImportError:
+    HAVE_ESC = False
+try:
+    from lib.quad_mixer import mix_x, mix_x_report
+    HAVE_MIXER = True
+except ImportError:
+    HAVE_MIXER = False
+try:
+    from lib.siglab import BlockSampler, Stats, stream_csv, key_pressed
+    HAVE_SIGLAB = True
+except ImportError:
+    HAVE_SIGLAB = False
+
 
 # ============================================================================
 # CONFIGURACIÓN DE PINES
@@ -45,6 +64,15 @@ STEPPER_PINS_ULN2003 = {
 }
 ENDSTOP_PIN = 4
 
+# --- Módulo opcional: dron con motores 2212 (ESC + mezclador X) -----------
+# Cambia a True solo cuando tengas 4× ESC + motores 2212 conectados. Con
+# False, el modo 8 del menú queda deshabilitado y el resto de P8 funciona
+# igual que antes. Ver docs/dron_2212.md para el cableado completo.
+ENABLE_DRONE = False
+ESC_PINS = [13, 14, 16, 17]      # M1 (front-left) .. M4 (rear-right)
+ESC_MIN_US = 1000                # throttle 0 %
+ESC_MAX_US = 2000                # throttle 100 %
+
 
 # ============================================================================
 # UTILIDADES DE INTERFAZ
@@ -78,6 +106,8 @@ def print_menu():
     print("║  [5] Modo automático (piloto automático simple)             ║")
     print("║  [6] Diagnóstico del sistema                                ║")
     print("║  [7] Configuración                                          ║")
+    print("║  [8] Dron: motores 2212 (ESC + mezclador X)  [opcional]     ║")
+    print("║  [9] Análisis de señales (cadena / muestreo multicanal)     ║")
     print("║  [q] Salir                                                  ║")
     print("╚══════════════════════════════════════════════════════════════╝")
     print("\nSelecciona una opción: ", end='')
@@ -474,6 +504,181 @@ def mode_configuration(sensors, controls, propulsion):
 
 
 # ============================================================================
+# MODO 8: DRON CON MOTORES 2212 (ESC + MEZCLADOR X) — OPCIONAL
+# ============================================================================
+
+def mode_drone(quad):
+    """Submenú del módulo opcional de dron (4× ESC + motores 2212)."""
+    if quad is None:
+        print("\n⚠ Módulo de dron no disponible.")
+        print("  Activa ENABLE_DRONE = True en main.py y conecta 4x ESC + motores 2212.")
+        print("  Guía completa: docs/dron_2212.md")
+        input("\nPresiona ENTER para continuar...")
+        return
+
+    while True:
+        print("\n╔══════════════════════════════════════════════════════════════╗")
+        print("║        DRON: MOTORES 2212 (ESC + MEZCLADOR X)  ⚠ SIN HÉLICES ║")
+        print("╠══════════════════════════════════════════════════════════════╣")
+        print("║  [1] Armar los 4 ESC (obligatorio antes de cualquier prueba) ║")
+        print("║  [2] Test individual de motor (throttle manual, bajo)        ║")
+        print("║  [3] Mezclador X (throttle/roll/pitch/yaw por teclado)       ║")
+        print("║  [4] Jitter del PWM del ESC (osciloscopio + siglab)          ║")
+        print("║  [5] PARADA DE EMERGENCIA (throttle 0 en los 4 + desarmar)   ║")
+        print("║  [m] Volver al menú principal                                ║")
+        print("╚══════════════════════════════════════════════════════════════╝")
+        opt = input("Selecciona opción: ").strip().lower()
+
+        if opt == 'm':
+            quad.emergency_stop()
+            return
+        elif opt == '1':
+            confirm = input("¿Confirmas que las hélices están RETIRADAS? (si/no): ").strip().lower()
+            if confirm not in ('si', 's', 'yes', 'y'):
+                print("Armado cancelado por seguridad.")
+                continue
+            quad.arm_all(hold_s=2.0)
+        elif opt == '2':
+            if not any(e.is_armed() for e in quad.escs):
+                print("⚠ Arma los ESC primero (opción 1).")
+                continue
+            idx = input("Motor a probar (1-4): ").strip()
+            if idx not in ('1', '2', '3', '4'):
+                print("Índice inválido.")
+                continue
+            i = int(idx) - 1
+            print("Throttle 0-100 (recomendado <=20% en banco sin hélice).")
+            print("Escribe un número + ENTER, o 'm' para volver.")
+            while True:
+                v = input("throttle%: ").strip().lower()
+                if v == 'm':
+                    quad.escs[i].stop()
+                    break
+                try:
+                    pct = float(v)
+                    quad.escs[i].throttle(pct)
+                    print("  {} -> {:.1f}% (pulso ~{:.0f}us)".format(
+                        quad.escs[i].label, pct, quad.escs[i].pulse_us()))
+                except (ValueError, RuntimeError) as e:
+                    print("  Error: {}".format(e))
+        elif opt == '3':
+            if not any(e.is_armed() for e in quad.escs):
+                print("⚠ Arma los ESC primero (opción 1).")
+                continue
+            print("\n[Mezclador X] Controles: t/T throttle -/+, r/R roll, p/P pitch, y/Y yaw")
+            print("              [SPACE] parada de emergencia   [m] volver\n")
+            throttle, roll, pitch, yaw = 0.0, 0.0, 0.0, 0.0
+            while True:
+                key = wait_key(150)
+                if key:
+                    if key == ' ':
+                        quad.emergency_stop()
+                        throttle = roll = pitch = yaw = 0.0
+                        print("¡EMERGENCIA! Motores a 0%.")
+                        continue
+                    if key.lower() == 'm':
+                        quad.emergency_stop()
+                        break
+                    if key == 't':
+                        throttle = max(0.0, throttle - 5)
+                    elif key == 'T':
+                        throttle = min(100.0, throttle + 5)
+                    elif key == 'r':
+                        roll = max(-100.0, roll - 10)
+                    elif key == 'R':
+                        roll = min(100.0, roll + 10)
+                    elif key == 'p':
+                        pitch = max(-100.0, pitch - 10)
+                    elif key == 'P':
+                        pitch = min(100.0, pitch + 10)
+                    elif key == 'y':
+                        yaw = max(-100.0, yaw - 10)
+                    elif key == 'Y':
+                        yaw = min(100.0, yaw + 10)
+                    m, txt = mix_x_report(throttle, roll, pitch, yaw)
+                    quad.set_all(m)
+                    print("thr={:5.1f} roll={:6.1f} pitch={:6.1f} yaw={:6.1f}  ->  {}".format(
+                        throttle, roll, pitch, yaw, txt))
+        elif opt == '4':
+            if not HAVE_SIGLAB:
+                print("⚠ Falta lib/siglab.py."); continue
+            if not any(e.is_armed() for e in quad.escs):
+                print("⚠ Arma los ESC primero (opción 1).")
+                continue
+            print("\nManteniendo M1 a 15% throttle 20 s para medir con el osciloscopio.")
+            print("CH1 -> pin M1 (GPIO{}), 1 ms/div, trigger flanco de subida ~1.5V.".format(ESC_PINS[0]))
+            print("Measure -> Pulse Width -> StdDev.")
+            quad.escs[0].throttle(15)
+            for _ in range(20):
+                if check_menu_command():
+                    break
+                utime.sleep(1)
+            quad.escs[0].stop()
+            print("Terminado. En la PC:")
+            print("  python -m sisela_signal characterize --scope --file scopeCH1.csv --col CH1 --mode adc")
+        elif opt == '5':
+            quad.emergency_stop()
+            quad.disarm_all()
+            print("PARADA DE EMERGENCIA: los 4 motores a 0% y ESC desarmados.")
+        else:
+            print("Opción inválida.")
+
+
+# ============================================================================
+# MODO 9: ANÁLISIS DE SEÑALES (cadena de señal / muestreo multicanal)
+# ============================================================================
+
+def mode_signal_analysis(sensors, controls):
+    """Submenú de análisis de señales para P8 (usa lib/siglab.py)."""
+    if not HAVE_SIGLAB:
+        print("\n⚠ Falta lib/siglab.py en /lib. No se puede ejecutar este modo.")
+        input("Presiona ENTER para continuar...")
+        return
+
+    while True:
+        print("\n╔══════════════════════════════════════════════════════════════╗")
+        print("║             ANÁLISIS DE SEÑALES — PRÁCTICA 8                 ║")
+        print("╠══════════════════════════════════════════════════════════════╣")
+        print("║  [1] Latencia de la cadena sensor -> actuador                ║")
+        print("║  [2] Muestreo multicanal (4 sensores ADC a Fs fija)          ║")
+        print("║  [m] Volver al menú principal                                ║")
+        print("╚══════════════════════════════════════════════════════════════╝")
+        opt = input("Selecciona opción: ").strip().lower()
+
+        if opt == 'm':
+            return
+        elif opt == '1':
+            n = 200
+            print("\nMidiendo latencia de {} ciclos: leer 'altitude' -> mover alerón...".format(n))
+            st = Stats()
+            for _ in range(n):
+                t0 = utime.ticks_us()
+                alt = sensors.get_sensor('altitude')
+                controls.set_surface('aileron', int((alt / 3000.0) * 180))
+                t1 = utime.ticks_us()
+                st.add(utime.ticks_diff(t1, t0))
+            controls.center_all()
+            print("Latencia (us): " + st.report("us"))
+            print("Tasa de actualización efectiva ~ {:.1f} Hz".format(1e6 / st.mean if st.mean else 0))
+        elif opt == '2':
+            fs = 50
+            n = 500
+            print("\nCaptura multicanal: altitud,velocidad,actitud,luz a {} Hz, {} muestras.".format(fs, n))
+            print("t_us,alt_m,spd_kt,att_deg,lux")
+
+            def read_all4():
+                d = sensors.read_all()
+                return (d['altitude'], d['speed'], d['attitude'], d['light'])
+
+            stream_csv(read_all4, fs, cols=("alt_m", "spd_kt", "att_deg", "lux"), max_samples=n)
+            print("\nEn la PC:")
+            print("  python -m sisela_signal spectrum --file cap.csv --col alt_m --psd")
+            print("  python -m sisela_signal alias    --file cap.csv --col spd_kt --true-f <f_gen>")
+        else:
+            print("Opción inválida.")
+
+
+# ============================================================================
 # FUNCIÓN PRINCIPAL
 # ============================================================================
 
@@ -513,7 +718,20 @@ def main():
     except RuntimeError as e:
         print(f"⚠ {e}")
         landing_gear = None
-    
+
+    # Módulo opcional: dron con motores 2212
+    quad = None
+    if ENABLE_DRONE:
+        print("  [opcional] Dron: 4x ESC + motores 2212...", end=' ')
+        if HAVE_ESC and HAVE_MIXER:
+            try:
+                quad = QuadESC(ESC_PINS, min_us=ESC_MIN_US, max_us=ESC_MAX_US)
+                print("✓ (SIN ARMAR — usa el modo 8, opción 1)")
+            except Exception as e:
+                print(f"⚠ {e}")
+        else:
+            print("⚠ falta lib/esc.py o lib/quad_mixer.py")
+
     print("\n✓ Sistema inicializado correctamente\n")
     utime.sleep(1)
     
@@ -541,6 +759,10 @@ def main():
                 mode_diagnostics(sensors, controls, propulsion, landing_gear)
             elif choice == '7':
                 mode_configuration(sensors, controls, propulsion)
+            elif choice == '8':
+                mode_drone(quad)
+            elif choice == '9':
+                mode_signal_analysis(sensors, controls)
             elif choice.lower() == 'q':
                 print("\nCerrando sistema...")
                 break
@@ -556,12 +778,17 @@ def main():
         print("\nApagando subsistemas...")
         controls.center_all()
         propulsion.set_throttle(0)
-        
+        if quad is not None:
+            quad.emergency_stop()
+            quad.disarm_all()
+
         print("  Liberando recursos...", end=' ')
         controls.deinit()
         propulsion.deinit()
         if landing_gear:
             landing_gear.deinit()
+        if quad is not None:
+            quad.deinit()
         sensors.deinit()
         print("✓")
         

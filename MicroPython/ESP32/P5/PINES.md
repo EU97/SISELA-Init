@@ -39,6 +39,23 @@ mmdc -i assets/wiring.mmd -o assets/wiring.svg -b transparent
 | 2 (Ángulo) | REPL | Ángulo absoluto 0–180° |
 | 3 (Pulso us) | REPL | Pulso directo para calibración |
 | 4 (Potenciómetro) | ADC GPIO34 | Ángulo proporcional 0–180° |
+| 5 (Jitter PWM) | — | pulso fijo; se mide con el osciloscopio |
+| 6 (Muestreo/aliasing) | **generador → GPIO34** | bloque CSV `t_us,counts,v` |
+| 7 (Escalón) | potenciómetro de realimentación → GPIO34 | CSV de la posición durante el transitorio |
+
+## Puntos de medida — Análisis de señales (modos 5–7)
+
+| Punto | Señal | Notas |
+|---|---|---|
+| CH1 osciloscopio → **GPIO18** | tren de pulsos PWM 50 Hz | 1 ms/div, trigger flanco de subida ~1.5 V; *Measure → Pulse Width → StdDev* |
+| CH2 osciloscopio → **GPIO34** | señal del generador / realimentación | verificar 0–3.3 V |
+| **Generador → GPIO34** (modo 6) | seno, amplitud ≤ 2 Vpp, **offset +1.65 V**, salida HighZ | ⚠️ nunca fuera de 0–3.3 V |
+| Potenciómetro de realimentación (modo 7) | cursor → GPIO34; extremos a 3V3 y GND | acoplado al eje del servo |
+
+> ⚠️ **Protección del ADC:** el pin ADC del ESP32 no tolera > 3.3 V ni tensiones
+> negativas. Comprueba la señal completa del generador (offset ± amplitud/2) con el
+> osciloscopio **antes** de conectarla al MCU. Opcional: divisor + diodos de recorte a
+> GND y 3.3 V.
 
 ## Recomendaciones de cableado
 

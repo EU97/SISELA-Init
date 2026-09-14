@@ -2,6 +2,7 @@
 #include <Wire.h>
 #include "practices/practice.h"
 #include "board_config.h"
+#include "common/siglab.h"
 
 #if PRACTICE==4
 // ============================================================================
@@ -30,7 +31,9 @@ static const uint8_t CMD_PRES    = 0x34;  // + (oss << 6)
 static const uint8_t OSS = 1;             // Sobremuestreo estándar
 static float SEA_LEVEL_PA = 101325.0f;    // QNH (Pa)
 static uint32_t lastRead = 0;
-static uint8_t mode = 3;                  // 1=Raw, 2=T+P, 3=Altitude
+static uint8_t mode = 3;                  // 1=Raw 2=T+P 3=Altitude 4=CSV 6=Ruido 7=Filtro
+static uint32_t csvStart = 0;             // t0 para el modo CSV
+static siglab::MovAvg<8> altFilter;       // filtro del modo 7
 
 // Coeficientes de calibración
 static int16_t  AC1, AC2, AC3, B1, B2, MB, MC, MD;
@@ -175,6 +178,37 @@ static void read_all(float &temp, int32_t &pres, float &alt) {
 }
 
 // ============================================================================
+// Modo 6: análisis de ruido y muestreo (bloque de altitud a Fs fija)
+// ============================================================================
+static float read_altitude_only() {
+  int32_t UT = read_raw_temp();
+  int32_t UP = read_raw_pressure();
+  compensate_temp(UT);
+  return calc_altitude(compensate_pressure(UP));
+}
+
+static void run_noise_block() {
+  static const uint8_t OSS_DT[4] = {5, 8, 14, 26};
+  const uint8_t dt = OSS_DT[OSS];
+  float fsMax = 1000.0f / (2 * dt + 2);
+  float fs = fsMax > 5.0f ? 5.0f : fsMax;
+  const uint16_t N = 256;
+  Serial.printf("OSS=%d -> Fs max ~%.1f Hz. Capturando %u muestras a %.1f Hz...\n",
+                OSS, fsMax, N, fs);
+
+  siglab::BlockSampler<N> bs(fs);
+  auto r = bs.run(read_altitude_only);
+  siglab::Stats st;
+  for (uint16_t i = 0; i < N; i++) st.add(r.samples[i]);
+
+  r.report(Serial);
+  st.report(Serial, " m");
+  Serial.printf("resolucion efectiva ~ %.2f 'bits' sobre 100 m\n", st.effectiveBits(100.0));
+  bs.dumpCsv(Serial, r, "alt_m");
+  Serial.println("PC: python -m sisela_signal spectrum --file cap.csv --col alt_m --psd");
+}
+
+// ============================================================================
 // Setup / Loop
 // ============================================================================
 namespace practices {
@@ -218,13 +252,16 @@ namespace practices {
     Serial.println("1) Datos crudos (UT, UP)");
     Serial.println("2) Temperatura + Presión compensadas");
     Serial.println("3) Altímetro (altitud m/ft)");
-    Serial.println("\nEscribe 1, 2 o 3 + ENTER. Default: 3 en 5s");
+    Serial.println("4) Monitor CSV (timestamp_ms,temp_C,pressure_hPa,altitude_m)");
+    Serial.println("6) Análisis de ruido y muestreo (bloque + estadística)");
+    Serial.println("7) Filtro digital en vivo (CSV alt_raw,alt_filt)");
+    Serial.println("\nEscribe 1-7 + ENTER. Default: 3 en 5s");
 
     uint32_t start = millis();
     while (millis() - start < 5000) {
       if (Serial.available()) {
         char c = Serial.read();
-        if (c >= '1' && c <= '3') {
+        if ((c >= '1' && c <= '4') || c == '6' || c == '7') {
           mode = c - '0';
           while (Serial.available()) Serial.read();
           break;
@@ -233,7 +270,12 @@ namespace practices {
     }
 
     Serial.printf("\nModo: %d\n", mode);
+    csvStart = millis();
+    if (mode == 4) Serial.println("timestamp_ms,temp_C,pressure_hPa,altitude_m");
+    if (mode == 7) { altFilter = siglab::MovAvg<8>(); Serial.println("t_ms,alt_raw,alt_filt"); }
     Serial.println("Escribe 'm' + ENTER para cambiar modo.\n");
+
+    if (mode == 6) run_noise_block();
   }
 
   void loop() {
@@ -275,6 +317,18 @@ namespace practices {
         Serial.printf("Alt: %.1f m (%.0f ft)  P: %.2f hPa  T: %.1f°C  QNH: %.1f\n",
                       h, h_ft, P_hPa, T, SEA_LEVEL_PA / 100.0f);
         break;
+
+      case 4:  // Monitor CSV para altimeter_gui.py y la toolkit de análisis
+        Serial.printf("%lu,%.1f,%.2f,%.1f\n",
+                      (unsigned long)(millis() - csvStart), T, P_hPa, h);
+        break;
+
+      case 7: {  // Filtro digital en vivo (media móvil de 8)
+        float filt = altFilter.add(h);
+        Serial.printf("%lu,%.3f,%.3f\n",
+                      (unsigned long)(millis() - csvStart), h, filt);
+        break;
+      }
     }
   }
 }

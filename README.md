@@ -42,12 +42,19 @@ Las prácticas cubren desde GPIO y temporización hasta integración de sensores
 
 - **P1:** GPIO, temporización, menú interactivo, LEDs y botones
 - **P2:** ADC, sensor de posición analógico (potenciómetro), calibración
-- **P3:** NTC, ecuación Beta, medición de temperatura
-- **P4:** Sensor presión MPX5500DP, conversión ADC a kPa
+- **P3:** Termistor NTC (ecuación Beta) y sensor lineal LM35, medición de temperatura
+- **P4:** Altímetro barométrico con sensor digital **BMP180** (I2C), compensación de 11 coeficientes y altitud ISA
 - **P5:** Control de servomotores con PWM (50 Hz), barrido y control por potenciómetro
 - **P6:** Conmutación de potencia con PWM y transistor (MOSFET/BJT)
 - **P7:** Control de motores a pasos (A4988/ULN2003), homing y endstop
 - **P8:** Integración completa: sensores ADC, servos, motor PWM y tren de aterrizaje
+
+> **Análisis de señales (P4–P8):** cada práctica de P4 a P8 incorpora modos de
+> análisis de señales (muestreo/aliasing, espectro/FFT, filtrado digital,
+> caracterización de ADC y respuesta dinámica) que se apoyan en un generador de
+> funciones + osciloscopio de banco y en la toolkit PC
+> [`tools/sisela_signal/`](tools/sisela_signal/README.md). Ver el
+> [reporte de verificación](docs/VERIFICACION_PRACTICAS.md).
 
 
 ## Índice de prácticas y estado

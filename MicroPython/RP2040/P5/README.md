@@ -67,7 +67,30 @@ Resumen rápido:
 | 2 | Ángulo manual (0–180) | `Ángulo→ 90°  (pulso ~1500us)` |
 | 3 | Pulso directo (us) | `Pulso→ 1800us` |
 | 4 | Control por potenciómetro | `ADC=32768 →  90°` |
+| 5 | Jitter de PWM (osciloscopio) | mantiene un pulso fijo; se mide σ del ancho con el osciloscopio |
+| 6 | Muestreo y aliasing (ADC + generador) | bloque CSV `t_us,counts,v` a Fs fija |
+| 7 | Respuesta al escalón del servo-lazo | CSV de la realimentación de posición durante el transitorio |
 | q | Salir | — |
+
+## Análisis de señales (modos 5–7)
+
+Usa el **generador de funciones** (seno → ADC en GP26) y el **osciloscopio** (PWM en
+GP18). El RP2040 destaca aquí por su jitter de PWM ~10× menor que el ESP32 y su ADC de
+mayor resolución. Procesado en la PC con
+[`tools/sisela_signal/`](../../../tools/sisela_signal/README.md):
+
+```bash
+python -m sisela_signal characterize --scope --file scopeCH1.csv --col CH1 --mode adc   # jitter PWM (modo 5)
+python -m sisela_signal spectrum      --file cap.csv --col v --metrics --full-scale 3.3  # ENOB (modo 6)
+python -m sisela_signal alias         --file cap.csv --true-f 1100                        # aliasing (modo 6)
+python -m sisela_signal characterize  --file step.csv --col v --mode step                 # escalón (modo 7)
+```
+
+> ⚠️ **Generador → ADC (GP26):** seno con amplitud ≤ 2 Vpp y **offset +1.65 V**.
+> El ADC del RP2040 **no tolera** voltajes fuera de 0–3.3 V. Verifica con el
+> osciloscopio antes de conectar.
+
+Guía completa: [docs/analisis_senales.md](docs/analisis_senales.md).
 
 ### Parámetros ajustables (main.py)
 

@@ -70,12 +70,33 @@
 
 ---
 
+## Módulo opcional — Dron con motores 2212 (ESC)
+
+Solo si `ENABLE_DRONE = True` en `main.py`. Requiere 4× ESC + motores 2212
+(ver [docs/dron_2212.md](docs/dron_2212.md)).
+
+| Motor | Pin ESP32 | Señal |
+|---|---|---|
+| M1 (front-left, CW) | GPIO13 | PWM 50 Hz, 1000–2000 µs |
+| M2 (front-right, CCW) | GPIO14 | PWM 50 Hz, 1000–2000 µs |
+| M3 (rear-left, CCW) | GPIO16 | PWM 50 Hz, 1000–2000 µs |
+| M4 (rear-right, CW) | GPIO17 | PWM 50 Hz, 1000–2000 µs |
+
+**Alimentación de los motores**: LiPo 3S dedicada, **nunca** desde el ESP32.
+GND del ESC común con el ESP32 (solo la referencia de señal).
+
+---
+
 ## Resumen de pines ocupados
 
 | GPIO | Función |
 |------|---------|
 | 4 | Endstop (tren) |
 | 5 | EN (stepper A4988) |
+| 13 | [opcional] ESC M1 (dron) |
+| 14 | [opcional] ESC M2 (dron) |
+| 16 | [opcional] ESC M3 (dron) |
+| 17 | [opcional] ESC M4 (dron) |
 | 18 | PWM Motor |
 | 19 | STEP (A4988) o IN1 (ULN2003) |
 | 21 | DIR (A4988) o IN2 (ULN2003) |

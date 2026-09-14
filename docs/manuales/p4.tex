@@ -1,0 +1,653 @@
+\documentclass[11pt]{article}
+\input{preamble}
+\renewcommand{\practnum}{4}
+\renewcommand{\practtitle}{Altímetro Barométrico con Sensor BMP180\\
+Comunicación I2C, Compensación Digital y Análisis de Señales — Énfasis Aeronáutico}
+
+\begin{document}
+\portada
+
+\begin{resumen}
+Esta sesión implementa un altímetro barométrico funcional con el sensor digital BMP180
+(Bosch). Se aborda la comunicación I2C maestro--esclavo, la lectura de 11 coeficientes de
+calibración de fábrica, el algoritmo completo de compensación de temperatura y presión
+según el \emph{datasheet}, y el cálculo de altitud barométrica mediante la fórmula ISA.
+Se introducen conceptos de altimetría aeronáutica (QNH, QFE, QNE, altitud de transición)
+y se realizan mediciones comparativas a distintas alturas. La práctica incorpora además
+un módulo de \textbf{análisis de señales} sobre la serie temporal del sensor: verificación
+de la frecuencia de muestreo, caracterización del ruido (desviación de Allan, resolución
+efectiva), análisis espectral del piso de ruido y diseño de filtros digitales.
+\end{resumen}
+
+\tableofcontents
+\newpage
+
+% ============================================================================
+\section{Introducción}
+
+La medición precisa de la presión barométrica es uno de los pilares de la navegación
+aérea. El altímetro barométrico, presente en todo panel de vuelo, determina la altitud
+de la aeronave midiendo la presión atmosférica y comparándola con un modelo de atmósfera
+estándar. Aun con sistemas GNSS, el altímetro barométrico sigue siendo el medio primario
+de separación vertical en espacio aéreo controlado, porque proporciona una referencia de
+altitud común basada en la misma presión de referencia (QNH).
+
+El \textbf{BMP180} de Bosch Sensortec es un sensor MEMS completamente digital que se
+comunica por el bus I2C. Internamente combina un puente de Wheatstone piezoresistivo, un
+ADC sigma--delta de alta resolución y una memoria EEPROM con 11 coeficientes de
+calibración grabados de fábrica para compensar las variaciones del proceso de fabricación.
+
+Esta práctica profundiza en: (i)~el protocolo I2C (maestro--esclavo, direccionamiento,
+registros); (ii)~la lectura e interpretación de los coeficientes de calibración;
+(iii)~el algoritmo de compensación entera de 32 bits del \emph{datasheet};
+(iv)~el cálculo de altitud con la fórmula ISA; (v)~la altimetría aeronáutica
+(QNH/QFE/QNE); y (vi)~el \textbf{análisis de la señal de salida del sensor} como una
+serie temporal muestreada (ruido, muestreo, espectro y filtrado).
+
+% ============================================================================
+\section{Objetivos de Aprendizaje}
+
+Al finalizar esta práctica, el estudiante será capaz de:
+\begin{enumerate}
+  \item Explicar el principio MEMS piezoresistivo del BMP180 y su estructura interna
+        (puente de Wheatstone, ADC sigma--delta, EEPROM).
+  \item Configurar el bus I2C como maestro y realizar transacciones de lectura/escritura
+        por dirección y registro; verificar el dispositivo mediante escaneo del bus.
+  \item Leer los 11 coeficientes de calibración (AC1--AC6, B1, B2, MB, MC, MD) desde la
+        EEPROM y comprender su rol en la compensación (con y sin signo).
+  \item Implementar el algoritmo de compensación completo
+        ($\text{UT}\to X_1\to X_2\to B_5\to T$;
+         $\text{UP}\to B_6\to B_3\to B_4\to B_7\to P$) en aritmética entera de 32 bits.
+  \item Calcular la altitud barométrica
+        $h = \num{44330}\,\bigl(1-(P/P_0)^{1/5.255}\bigr)$ y discutir sus limitaciones.
+  \item Operar con referencias altimétricas: configurar el QNH para obtener altitud real
+        respecto al nivel medio del mar, diferenciando QNH, QFE y QNE.
+  \item Verificar la \textbf{frecuencia de muestreo real} de la adquisición y su
+        \emph{jitter}, y relacionarla con el teorema de Nyquist.
+  \item Caracterizar el \textbf{ruido} de la medición de altitud (desviación estándar,
+        RMS, resolución efectiva en bits, densidad espectral de potencia, desviación de
+        Allan).
+  \item Diseñar y evaluar \textbf{filtros digitales} (media móvil, mediana, exponencial)
+        y medir su respuesta en frecuencia y su respuesta al escalón.
+  \item Documentar resultados siguiendo la estructura de reporte técnico AIAA
+        simplificado.
+\end{enumerate}
+
+% ============================================================================
+\section{Fundamentos Teóricos}
+
+\subsection{Presión barométrica y atmósfera estándar ISA}
+La presión atmosférica al nivel del mar en condiciones ISA es
+\begin{equation}
+  P_0 = \SI{101325}{\pascal} = \SI{1013.25}{\hecto\pascal} = \SI{29.92}{inHg}.
+\end{equation}
+El modelo ISA en la troposfera ($h<\SI{11000}{\meter}$):
+\begin{equation}
+  P(h) = P_0\left(1 - \frac{L\,h}{T_0}\right)^{\frac{g_0}{R\,L}},
+\end{equation}
+con $L=\SI{0.0065}{\kelvin\per\meter}$, $T_0=\SI{288.15}{\kelvin}$,
+$g_0=\SI{9.80665}{\meter\per\second\squared}$,
+$R=\SI{287.05}{\joule\per\kilogram\per\kelvin}$. La ecuación inversa (fórmula
+barométrica) es
+\begin{equation}
+  \boxed{\; h = \frac{T_0}{L}\left[1-\left(\frac{P}{P_0}\right)^{\frac{R\,L}{g_0}}\right]
+        = \num{44330}\left[1-\left(\frac{P}{P_0}\right)^{1/5.255}\right]\si{\meter}. \;}
+  \label{eq:isa}
+\end{equation}
+
+\begin{table}[H]\centering
+\caption{Atmósfera estándar ISA: valores seleccionados.}
+\begin{tabular}{rrrr}
+\toprule
+Altitud (m) & Temp.\ (\si{\celsius}) & Presión (hPa) & Densidad (\si{\kilogram\per\meter\cubed}) \\
+\midrule
+0     & 15.0  & 1013.25 & 1.2250 \\
+500   & 11.8  & 954.61  & 1.1673 \\
+1000  & 8.5   & 898.76  & 1.1117 \\
+2000  & 2.0   & 794.95  & 1.0066 \\
+3000  & $-4.5$  & 701.09  & 0.9091 \\
+5000  & $-17.5$ & 540.20  & 0.7361 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{nota}[Gradiente de presión]
+Cerca del nivel del mar la presión disminuye \SI{1}{\hecto\pascal} por cada
+\SI{8.5}{\meter} de ascenso ($\approx\SI{12}{\pascal\per\meter}$). Un altímetro con
+resolución de \SI{0.01}{\hecto\pascal} puede resolver diferencias de $\sim\SI{8.5}{\centi\meter}$.
+\end{nota}
+
+\subsection{Sensor BMP180: principio MEMS piezoresistivo}
+\begin{table}[H]\centering
+\caption{Especificaciones principales del BMP180.}
+\begin{tabular}{ll}
+\toprule
+Parámetro & Valor \\
+\midrule
+Rango de presión & 300--1100 hPa ($\approx +9000$ a $-500$ m) \\
+Resolución (presión) & 0.01 hPa (modo ultra-alta resolución, \code{oss}=3) \\
+Precisión absoluta & $\pm 1.0$ hPa típica \\
+Rango de temperatura & $-40$ a $+85$ \si{\celsius} \\
+Interfaz & I2C, dirección fija 0x77 \\
+Chip ID & 0x55 (registro 0xD0) \\
+Alimentación & 1.8--3.6 V \\
+Consumo & \SI{5}{\micro\ampere} (estándar), \SI{0.1}{\micro\ampere} (standby) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]\centering
+\caption{Modos de sobremuestreo (OSS) del BMP180.}
+\begin{tabular}{lcccc}
+\toprule
+Modo & OSS & Muestras internas & Tiempo (ms) & Ruido RMS (Pa) \\
+\midrule
+Ultra Low Power & 0 & 1 & 4.5  & 6.0 \\
+Estándar        & 1 & 2 & 7.5  & 5.0 \\
+Alta resolución & 2 & 4 & 13.5 & 4.0 \\
+Ultra High Res. & 3 & 8 & 25.5 & 3.0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Protocolo I2C}
+I2C usa dos líneas \emph{open-drain} con pull-up ($\approx\SI{4.7}{\kilo\ohm}$):
+\textbf{SDA} (datos) y \textbf{SCL} (reloj, generado por el maestro). Cada dispositivo
+tiene una dirección de 7 bits (BMP180 = $0\mathrm{x}77 = 0111\,0111_2$). El patrón de
+transacción es START $\to$ dirección + R/W $\to$ ACK $\to$ datos $\to$ ACK $\to$ STOP.
+La comunicación con el BMP180 sigue el patrón registro--dato:
+\begin{itemize}
+  \item \textbf{Escritura}: START $\to$ (\code{0x77}, W) $\to$ ACK $\to$ registro $\to$
+        ACK $\to$ dato $\to$ ACK $\to$ STOP.
+  \item \textbf{Lectura}: START $\to$ (\code{0x77}, W) $\to$ ACK $\to$ registro $\to$
+        ACK $\to$ RESTART $\to$ (\code{0x77}, R) $\to$ ACK $\to$ datos $\to$ NACK $\to$ STOP.
+\end{itemize}
+
+\subsection{Mapa de registros y coeficientes de calibración}
+\begin{table}[H]\centering
+\caption{Registros principales del BMP180.}
+\begin{tabular}{llll}
+\toprule
+Dirección & Nombre & Acceso & Descripción \\
+\midrule
+0xAA--0xBF & Calibración & R & 11 coeficientes (22 bytes, big-endian) \\
+0xD0       & Chip ID     & R & Debe ser 0x55 \\
+0xE0       & Soft Reset  & W & Escribir 0xB6 \\
+0xF4       & Control     & R/W & Inicia medición \\
+0xF6--0xF8 & Data        & R & Resultado (16 o 19 bits) \\
+\bottomrule
+\end{tabular}
+\end{table}
+Para iniciar una medición se escribe en 0xF4: temperatura $\to$ \code{0x2E}, esperar
+\SI{4.5}{\milli\second}, leer 16 bits $\to$ UT. Presión $\to$
+\code{0x34 + (oss} $\ll$ \code{6)}, esperar según el modo, leer 24 bits, desplazar
+$\gg(8-\text{oss})$ $\to$ UP.
+
+\begin{table}[H]\centering
+\caption{Coeficientes de calibración del BMP180.}
+\begin{tabular}{llll}
+\toprule
+Coef.\ & Dirección & Tipo & Rol \\
+\midrule
+AC1 & 0xAA & int16  & Compensación principal \\
+AC2 & 0xAC & int16  & Compensación cruzada \\
+AC3 & 0xAE & int16  & Compensación cruzada \\
+AC4 & 0xB0 & uint16 & Factor de ganancia \\
+AC5 & 0xB2 & uint16 & Factor de conversión de temp. \\
+AC6 & 0xB4 & uint16 & Offset de temperatura \\
+B1  & 0xB6 & int16  & Compensación de presión \\
+B2  & 0xB8 & int16  & Compensación cruzada T--P \\
+MB  & 0xBA & int16  & Reservado \\
+MC  & 0xBC & int16  & Offset de temperatura \\
+MD  & 0xBE & int16  & Factor de conversión de temp. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{nota}[Tipos con/sin signo]
+AC4, AC5 y AC6 son \textbf{unsigned} de 16 bits (0--65535). El resto son \textbf{signed}
+de 16 bits ($-32768$ a $+32767$). En MicroPython, los valores leídos del bus I2C son
+siempre unsigned; se requiere conversión explícita a signed para los coeficientes que lo
+necesitan: \code{val - 65536 if val >= 32768 else val}.
+\end{nota}
+
+\subsection{Algoritmo de compensación de temperatura}
+\begin{align}
+  X_1 &= \frac{(\text{UT} - \text{AC6})\times\text{AC5}}{2^{15}} \\
+  X_2 &= \frac{\text{MC}\times 2^{11}}{X_1 + \text{MD}} \\
+  B_5 &= X_1 + X_2 \\
+  T   &= \frac{B_5 + 8}{2^4} \quad (\text{en \SI{0.1}{\celsius}}).
+\end{align}
+
+\subsection{Algoritmo de compensación de presión}
+\begin{align}
+  B_6 &= B_5 - 4000, &
+  X_1 &= \frac{B_2\lfloor B_6^2/2^{12}\rfloor}{2^{11}}, &
+  X_2 &= \frac{\text{AC2}\,B_6}{2^{11}}, \\
+  X_3 &= X_1 + X_2, &
+  B_3 &= \frac{(\text{AC1}\cdot 4 + X_3)\ll\text{oss} + 2}{4}, & & \\
+  X_1 &= \frac{\text{AC3}\,B_6}{2^{13}}, &
+  X_2 &= \frac{B_1\lfloor B_6^2/2^{12}\rfloor}{2^{16}}, &
+  X_3 &= \frac{(X_1+X_2)+2}{4}, \\
+  B_4 &= \frac{\text{AC4}\,(X_3+32768)}{2^{15}}, &
+  B_7 &= (\text{UP}-B_3)(50000\gg\text{oss}). & &
+\end{align}
+Selección de escala: $P = B_7\cdot 2 / B_4$ si $B_7 < \mathrm{0x80000000}$, en caso
+contrario $P = (B_7/B_4)\cdot 2$. Corrección final:
+\begin{equation}
+  P \mathrel{+}= \frac{\lfloor P/2^8\rfloor^2\cdot 3038/2^{16} \;-\; 7357\,P/2^{16} \;+\; 3791}{2^4}
+  \quad(\si{\pascal}).
+\end{equation}
+
+\begin{nota}[Aritmética entera]
+El \emph{datasheet} de Bosch especifica el algoritmo en aritmética entera de 32 bits. Las
+divisiones por potencias de 2 se implementan como desplazamientos ($\gg n$). Esto
+garantiza un resultado idéntico en cualquier plataforma (MicroPython, C++, FPGA) sin
+errores de punto flotante.
+\end{nota}
+
+\subsection{Altimetría aeronáutica: QNH, QFE, QNE}
+\begin{table}[H]\centering
+\caption{Referencias altimétricas en aviación.}
+\begin{tabular}{lll}
+\toprule
+Referencia & $P_0$ ajustada a & Altitud indicada \\
+\midrule
+QNH & Nivel medio del mar (local) & Altitud MSL \\
+QFE & Nivel del aeródromo & Altura AGL \\
+QNE & 1013.25 hPa (estándar) & Altitud de presión / Nivel de vuelo \\
+\bottomrule
+\end{tabular}
+\end{table}
+La ecuación~\eqref{eq:isa} se emplea con $P_0 = \text{QNH}$ para obtener la altitud real
+respecto al nivel del mar. Si se conoce la elevación $h_\text{conocida}$ del punto de
+medición, el QNH equivalente es
+$P_0 = P / \bigl(1 - h_\text{conocida}/\num{44330}\bigr)^{5.255}$.
+
+\subsection{ARINC 429: Label 203 (Baro-Corrected Altitude)}
+En aviónica avanzada la altitud barométrica corregida se transmite en formato ARINC 429
+bajo la Label 203 (octal). La palabra de 32 bits contiene: bits 1--8 label (203 octal,
+orden inverso), 9--10 SDI, 11--29 dato BNR (resolución $\sim\SI{1}{ft}$), 30--31 SSM,
+32 paridad impar.
+
+% ============================================================================
+\section{Consideraciones de Seguridad y Buenas Prácticas}
+\begin{enumerate}
+  \item \textbf{Alimentación del sensor}: el BMP180 opera a 1.8--3.6 V. El módulo GY-68
+        incluye regulador LDO y acepta 3.3 V o 5 V en VCC.
+  \item \textbf{Protección de pines I2C}: SDA/SCL son \emph{open-drain} a 3.3 V. No
+        conectar señales de 5 V sin conversión de nivel.
+  \item \textbf{Pull-ups}: el módulo GY-68 ya incluye pull-ups de \SI{4.7}{\kilo\ohm}. No
+        añadir pull-ups adicionales en la protoboard.
+  \item \textbf{ESD}: el BMP180 es sensible a descargas electrostáticas.
+  \item \textbf{Montaje}: un mal contacto en SDA/SCL causa errores intermitentes
+        difíciles de diagnosticar.
+  \item \textbf{Interpretación de altitud}: las lecturas barométricas \emph{no} son
+        precisión GPS. No usar para navegación real.
+\end{enumerate}
+
+% ============================================================================
+\section{Equipo y Materiales}
+\begin{itemize}
+  \item Módulo sensor BMP180 (GY-68) con regulador y pull-ups integrados.
+  \item Tarjeta de desarrollo: ESP32 DevKit o Raspberry Pi Pico (RP2040).
+  \item Protoboard y 4 cables Dupont (VCC, GND, SDA, SCL).
+  \item Cable USB para programación y comunicación serie (115200 baud).
+  \item Osciloscopio de 2 canales (para observar el bus I2C).
+  \item Analizador lógico (opcional, decodificación de protocolo I2C).
+  \item PC con Python 3.10+ y la toolkit \code{tools/sisela\_signal/}
+        (\code{numpy}, \code{scipy}, \code{matplotlib}, \code{pyserial}).
+\end{itemize}
+
+% ============================================================================
+\section{Etapa de Diseño}
+
+\subsection{Asignación de pines por plataforma}
+\begin{table}[H]\centering
+\caption{Pines I2C para cada plataforma.}
+\begin{tabular}{llll}
+\toprule
+Señal & ESP32 (MicroPython) & RP2040 (MicroPython) & C++ (Arduino) \\
+\midrule
+SDA & GPIO21 & GP0 & 21 (ESP32) / 4 (Pico) \\
+SCL & GPIO22 & GP1 & 22 (ESP32) / 5 (Pico) \\
+VCC & 3V3 & 3V3(OUT) & 3V3 \\
+GND & GND & GND & GND \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Cálculos de verificación (datos de ejemplo Bosch)}
+Con AC1 = 408, AC2 = $-72$, AC3 = $-14383$, AC4 = 32741, AC5 = 32757, AC6 = 23153,
+B1 = 6190, B2 = 4, MB = $-32768$, MC = $-8711$, MD = 2868, UT = 27898, UP = 23843:
+\begin{align*}
+  X_1 &= (27898 - 23153)\times 32757/2^{15} = 4743, \\
+  X_2 &= (-8711)\times 2^{11}/(4743 + 2868) = -2344, \\
+  B_5 &= 4743 + (-2344) = 2399, \\
+  T   &= (2399 + 8)/16 = 150 \;\Rightarrow\; \SI{15.0}{\celsius}.
+\end{align*}
+Si $P = \SI{69964}{\pascal}$ y $P_0 = \SI{101325}{\pascal}$:
+$h = \num{44330}\,(1-(69964/101325)^{1/5.255}) \approx \SI{3139}{\meter}$.
+
+\subsection{Diagrama general de fases}
+\begin{figure}[H]\centering
+\begin{tikzpicture}[node distance=0.9cm]
+  \node[term] (a) {Iniciar P4};
+  \node[block, below=of a] (b) {Escaneo I2C\\Verificar 0x77};
+  \node[block, below=of b] (c) {Leer 11 coef.\\de EEPROM};
+  \node[decision, below=of c] (d) {Menú de\\modos (1--7)};
+  \node[block, below=of d] (e) {Casos 1--7\\(ver \S7)};
+  \draw[flow] (a)--(b); \draw[flow] (b)--(c); \draw[flow] (c)--(d); \draw[flow] (d)--(e);
+\end{tikzpicture}
+\caption{Diagrama de flujo general de la Práctica 4.}
+\end{figure}
+
+% ============================================================================
+\section{Procedimiento Experimental}
+
+\subsection{Paso 1: preparación del entorno}
+\begin{enumerate}
+  \item Conectar el módulo BMP180 según la tabla de pines de la plataforma.
+  \item Verificar con multímetro 3.3 V en VCC del módulo.
+  \item Cargar el programa (incluir \code{lib/bmp180.py} y \code{lib/siglab.py} para
+        MicroPython).
+  \item Abrir terminal serie a 115200 baud.
+  \item Verificar que el escaneo I2C detecte el dispositivo en 0x77.
+\end{enumerate}
+
+\subsection{Caso 1: datos crudos y coeficientes de calibración}
+El programa lee y muestra los 11 coeficientes almacenados en la EEPROM, seguido de
+lecturas continuas de UT y UP. Anotar los valores de los 11 coeficientes en la
+Tabla~\ref{tab:coef}.
+
+\subsection{Caso 2: temperatura y presión compensadas}
+El modo muestra el resultado del algoritmo paso a paso ($X_1$, $X_2$, $B_5$, $B_6$,
+$B_3$, $B_4$, $B_7$). Comparar los valores intermedios con los cálculos manuales de la
+\S6.2.
+
+\subsection{Caso 3: altímetro barométrico con ajuste QNH}
+El modo implementa un altímetro que muestra altitud en metros y pies con ajuste de QNH
+(comando \code{q}) o calibración por altitud conocida (\code{aXXX}). Si la elevación del
+edificio de FIME es $\approx\SI{540}{\meter}$, calcular el QNH equivalente.
+
+\subsection{Caso 4: monitor CSV continuo}
+Emite \code{timestamp\_ms,temp\_C,pressure\_hPa,altitude\_m} a 5 Hz. Alimenta directamente
+la herramienta \code{altimeter\_gui.py}.
+
+\subsection{Caso 5: comparativa de alturas}
+Guía al estudiante para tomar mediciones en $\ge 3$ niveles distintos, calculando el
+promedio de 10 muestras/punto, la desviación estándar $\sigma_h$, y las diferencias de
+altura $\Delta h$ entre puntos consecutivos y respecto al primero.
+
+\subsection{Caso 6: análisis de ruido y muestreo}
+\begin{enumerate}
+  \item Con el sensor quieto, capturar un bloque de $N$ muestras de altitud a una
+        frecuencia $F_s$ seleccionable (el firmware usa \code{siglab.BlockSampler}).
+  \item El reporte indica: $F_s$ real vs solicitada, \emph{jitter} de muestreo $\sigma(\Delta t)$,
+        desviación estándar de la altitud $\sigma_h$, RMS del ruido, y resolución
+        efectiva en bits.
+  \item Repetir con \code{oss} = 0, 1, 2, 3.
+  \item Guardar el CSV y en la PC ejecutar:
+\begin{lstlisting}[language=bash]
+python -m sisela_signal spectrum     --file cap.csv --col alt_m --psd
+python -m sisela_signal characterize --file cap.csv --col alt_m --mode allan
+\end{lstlisting}
+\end{enumerate}
+
+\subsection{Caso 7: filtro digital en vivo}
+El modo aplica en la placa un filtro (media móvil, mediana o EMA) y transmite
+\code{t\_us,alt\_raw,alt\_filt}. Dejar el sensor quieto 20 s y luego subir un piso de
+escaleras (escalón). En la PC:
+\begin{lstlisting}[language=bash]
+python -m sisela_signal filter       --file cap.csv --col alt_raw --kind movavg --n 8 --bode
+python -m sisela_signal characterize --file cap.csv --col alt_filt --mode step
+\end{lstlisting}
+
+% ============================================================================
+\section{Análisis de Señales}
+\label{sec:senales}
+
+El BMP180 es un sensor \emph{digital}: no hay una señal analógica que inyectar con el
+generador de funciones. El análisis de señales de esta práctica se realiza sobre la
+\textbf{serie temporal digital} $y[n]$ (presión o altitud) y sobre el \textbf{bus I2C}.
+
+\subsection{Muestreo y teorema de Nyquist}
+Cada \code{read\_all()} del BMP180 realiza dos transacciones I2C y espera la conversión
+sigma--delta: \SI{8}{\milli\second} (oss=1) a \SI{26}{\milli\second} (oss=3). La
+frecuencia de muestreo práctica es de 5--30 Hz. El teorema de Nyquist--Shannon exige
+$F_s \ge 2 f_\text{max}$ para reconstruir una señal de banda limitada a $f_\text{max}$.
+Un componente de frecuencia $f > F_s/2$ se \emph{pliega} (aliasing) a
+$f_a = \lvert ((f + F_s/2)\bmod F_s) - F_s/2\rvert$. El firmware planifica las lecturas
+con \code{ticks\_us} y reporta el $F_s$ efectivo y su \emph{jitter}; si se solicita más
+frecuencia de la que el sensor puede entregar, el error de $F_s$ lo evidencia.
+
+\subsection{Caracterización del ruido y resolución efectiva}
+El ruido de presión del BMP180 (RMS 3--6 Pa según \code{oss}) se traduce en ruido de
+altitud a razón de $\approx\SI{8.43}{\meter\per\hecto\pascal}$. Se caracteriza mediante:
+\begin{itemize}
+  \item \textbf{Desviación estándar} $\sigma_h$ y RMS de un bloque estático.
+  \item \textbf{Resolución efectiva} $\text{ENOB}_\text{dc} =
+        \log_2\!\bigl(\text{rango}/(\sqrt{12}\,\sigma_h)\bigr)$.
+  \item \textbf{Densidad espectral de potencia} (método de Welch): forma del piso de
+        ruido (blanco vs $1/f$).
+  \item \textbf{Desviación de Allan} $\sigma_A(\tau)$ frente al tiempo de promediado
+        $\tau$: para ruido blanco $\sigma_A \propto \tau^{-1/2}$; el mínimo marca el
+        $\tau$ óptimo antes de que domine la deriva térmica/meteorológica.
+\end{itemize}
+
+\subsection{Filtrado digital}
+\begin{description}
+  \item[Media móvil de $N$] FIR de coeficientes iguales; función de transferencia
+        $H(z) = \frac{1}{N}\frac{1-z^{-N}}{1-z^{-1}}$, con ceros en $k\,F_s/N$ y retardo
+        de grupo $(N-1)/2$ muestras.
+  \item[Mediana de $N$] filtro no lineal; elimina \emph{spikes} de $\le\lfloor N/2\rfloor$
+        muestras sin suavizar los flancos reales.
+  \item[Exponencial (EMA)] IIR de 1\textsuperscript{er} orden $y[n]=y[n-1]+\alpha(x[n]-y[n-1])$;
+        pasa-bajos con $f_c \approx \frac{F_s\,\alpha}{2\pi(1-\alpha)}$.
+\end{description}
+En la PC se compara el efecto en el dominio del tiempo (suavizado vs retardo), en el
+dominio de la frecuencia (Bode del filtro) y ante un escalón real (tiempo de subida,
+sobre-oscilación).
+
+\subsection{El bus I2C en el osciloscopio}
+Con CH1 en SCL y CH2 en SDA (base \SI{10}{\micro\second\per div}, trigger flanco de
+bajada) se mide: la frecuencia de SCL ($\approx\SI{100}{\kilo\hertz}$), la duración de
+una transacción de lectura completa, y el periodo entre transacciones (igual a $1/F_s$
+del modo activo). El ``tiempo muerto'' del bus indica el margen para aumentar $F_s$.
+
+% ============================================================================
+\section{Registro de Datos y Análisis}
+
+\begin{table}[H]\centering
+\caption{Coeficientes de calibración medidos.}
+\label{tab:coef}
+\begin{tabular}{lcc | lcc}
+\toprule
+Coef.\ & Valor leído & Tipo & Coef.\ & Valor leído & Tipo \\
+\midrule
+AC1 & & int16  & B1 & & int16 \\
+AC2 & & int16  & B2 & & int16 \\
+AC3 & & int16  & MB & & int16 \\
+AC4 & & uint16 & MC & & int16 \\
+AC5 & & uint16 & MD & & int16 \\
+AC6 & & uint16 & & & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]\centering
+\caption{Verificación paso a paso del algoritmo de compensación.}
+\begin{tabular}{lll}
+\toprule
+Variable & Ecuación & Valor calculado / medido \\
+\midrule
+UT & lectura directa & \\
+$X_1$ (temp) & $(\text{UT}-\text{AC6})\,\text{AC5}/2^{15}$ & \\
+$X_2$ (temp) & $\text{MC}\cdot 2^{11}/(X_1+\text{MD})$ & \\
+$B_5$ & $X_1+X_2$ & \\
+$T$ & $(B_5+8)/2^4$ & \\
+UP & lectura directa & \\
+$P$ (final) & algoritmo completo & \\
+$h$ (altitud) & ec.~\eqref{eq:isa} & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]\centering
+\caption{Análisis de muestreo (Caso 6).}
+\begin{tabular}{ccccc}
+\toprule
+$F_s$ solicitada (Hz) & $F_s$ real (Hz) & error (\%) & jitter $\sigma$ (\si{\micro\second}) & dropouts \\
+\midrule
+5 & & & & \\
+10 & & & & \\
+20 & & & & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]\centering
+\caption{Ruido de altitud vs modo de sobremuestreo.}
+\begin{tabular}{ccccc}
+\toprule
+OSS & t/lectura (ms) & $\sigma_h$ (m) & RMS ruido (m) & resolución efectiva (bits/\SI{100}{\meter}) \\
+\midrule
+0 & & & & \\
+1 & & & & \\
+2 & & & & \\
+3 & & & & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]\centering
+\caption{Filtros digitales (respuesta a un escalón de $\sim\SI{3}{\meter}$).}
+\begin{tabular}{lccc}
+\toprule
+Filtro & t.\ subida 10--90\,\% (s) & sobre-oscilación (\%) & $\sigma$ residual en reposo (m) \\
+\midrule
+crudo & --- & --- & \\
+media móvil $N=8$ & & & \\
+mediana $N=5$ & & & \\
+EMA $\alpha=0.2$ & & & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Gráficas requeridas}
+\begin{enumerate}
+  \item Altitud vs tiempo de un recorrido vertical (crudo + filtrado superpuestos).
+  \item Presión vs altitud de la Tabla de comparativa, con la curva teórica ISA superpuesta.
+  \item PSD del ruido de altitud en reposo (log--log) para oss=1 y oss=3.
+  \item Desviación de Allan vs $\tau$ (identificar el mínimo).
+  \item Bode (magnitud) de la media móvil $N=8$ y de la EMA $\alpha=0.2$, marcando $f_{-3\,\text{dB}}$.
+  \item Captura de osciloscopio de una transacción I2C con anotaciones.
+\end{enumerate}
+
+% ============================================================================
+\section{Análisis de Resultados}
+\begin{enumerate}
+  \item Comparar los coeficientes leídos con los rangos típicos de Bosch. ¿Alguno parece
+        anómalo?
+  \item Verificar que el algoritmo produce valores razonables ($T\sim$ 20--30 \si{\celsius},
+        $P\sim$ 900--1050 hPa según elevación).
+  \item Evaluar la repetibilidad: ¿la desviación estándar de cada punto de la comparativa
+        es menor a \SI{0.5}{\meter}?
+  \item Calcular la altura real de cada piso del edificio a partir de los $\Delta h$
+        medidos. ¿Son consistentes (cada piso $\approx$ 3.0--3.5 m)?
+  \item A partir de la PSD del Caso 6: ¿el ruido de altitud es blanco o tiene componente
+        $1/f$? ¿Cambia con \code{oss}?
+  \item ¿A partir de qué $\tau$ deja de mejorar la desviación de Allan? ¿Qué lo limita?
+  \item Comparar la resolución teórica (\SI{0.01}{\hecto\pascal} $\approx$ \SI{8.5}{\centi\meter})
+        con la resolución efectiva observada.
+\end{enumerate}
+
+% ============================================================================
+\section{Preguntas de Discusión y Refuerzo}
+\begin{enumerate}
+  \item \textbf{Nyquist en un sensor lento}: a oss=1 el sensor tarda \SI{8}{\milli\second}
+        por lectura. ¿Cuál es la frecuencia máxima de una oscilación de presión (p.ej.\ una
+        puerta batiente) que podrías medir sin aliasing? ¿Qué pasa si intentas muestrear
+        a \SI{20}{\hertz}?
+  \item \textbf{Aritmética entera}: ¿por qué el \emph{datasheet} especifica el algoritmo
+        en enteros de 32 bits y no en punto flotante? Discutir portabilidad y determinismo.
+  \item \textbf{Coeficiente $B_5$}: ¿por qué aparece tanto en el cálculo de temperatura
+        como en el de presión? ¿Qué ocurre si se lee la presión sin actualizar $B_5$?
+  \item \textbf{QNH variable}: si el QNH cambia \SI{5}{\hecto\pascal} entre la calibración
+        y una medición posterior, ¿cuánto error de altitud introduce? Calcular con la
+        ec.~\eqref{eq:isa}.
+  \item \textbf{Promediado}: promediar 16 lecturas reduce el ruido $\sqrt{16}=4\times$.
+        ¿Por qué la desviación de Allan deja de bajar a partir de cierto $\tau$?
+  \item \textbf{Media móvil}: la media móvil de $N=8$ a $F_s=\SI{5}{\hertz}$, ¿qué
+        frecuencias elimina por completo? ¿Qué retardo introduce en segundos?
+  \item \textbf{Mediana vs media}: ¿en qué situación la mediana supera claramente a la
+        media móvil? ¿Qué desventaja tiene ante un escalón real?
+  \item \textbf{Resolución vs precisión}: el BMP180 tiene resolución de
+        \SI{0.01}{\hecto\pascal} pero precisión de $\pm\SI{1.0}{\hecto\pascal}$. ¿Qué
+        significa esta diferencia en la práctica?
+  \item \textbf{ARINC 429}: ¿cómo se codificaría una altitud de \SI{1250}{ft} en formato
+        BNR dentro de una palabra Label 203? Especificar los bits de dato, SSM y paridad.
+\end{enumerate}
+
+% ============================================================================
+\section{Entregables (Formato AIAA)}
+\begin{enumerate}
+  \item \textbf{Código fuente}: \code{main.py} + \code{lib/bmp180.py} + \code{lib/siglab.py}
+        (o \code{p4.cpp} + \code{common/siglab.h}) con comentarios claros.
+  \item \textbf{Tabla de coeficientes}: los 11 valores leídos de tu sensor.
+  \item \textbf{Verificación del algoritmo}: tabla con valores intermedios a mano vs medidos.
+  \item \textbf{Mediciones de altura}: $\ge 3$ puntos con $\sigma$ y $\Delta h$.
+  \item \textbf{Análisis de señales}: tablas de muestreo, ruido vs OSS y filtros (Caso 6--7).
+  \item \textbf{Gráficas}: las 6 de la \S9.4.
+  \item \textbf{Análisis}: respuestas a $\ge 4$ preguntas de la \S11.
+  \item \textbf{Conclusiones}: hallazgos, fuentes de error, sugerencias de mejora.
+  \item \textbf{Referencias}: $\ge 3$ fuentes consultadas.
+\end{enumerate}
+
+% ============================================================================
+\section{Referencias}
+\begin{enumerate}
+  \item Bosch Sensortec. (2013). \emph{BMP180 Digital Pressure Sensor Datasheet},
+        BST-BMP180-DS000-09, Rev 2.5.
+  \item ICAO. (1993). \emph{Manual of the ICAO Standard Atmosphere}, Doc 7488/3, 3rd ed.
+  \item ARINC. (2004). \emph{ARINC Specification 429 Part 1-17: Mark 33 DITS}.
+  \item NXP Semiconductors. (2021). \emph{UM10204: I2C-bus Specification and User Manual},
+        Rev 7.0.
+  \item MicroPython Project. \emph{MicroPython Documentation --- machine.I2C}.
+  \item Oppenheim, A.V. \& Schafer, R.W. \emph{Discrete-Time Signal Processing}, 3rd ed.
+  \item IEEE. \emph{IEEE Std 1241-2010 --- Standard for Terminology and Test Methods for
+        Analog-to-Digital Converters}.
+  \item Moir, I. \& Seabridge, A. (2008). \emph{Aircraft Systems}, 3rd ed., Wiley.
+\end{enumerate}
+
+% ============================================================================
+\appendix
+\section{Código Fuente del Repositorio}
+El código completo está en \url{https://github.com/EU97/SISELA-Init}.
+\begin{table}[H]\centering
+\caption{Archivos relevantes de la Práctica 4.}
+\begin{tabular}{ll}
+\toprule
+Ruta & Descripción \\
+\midrule
+\code{MicroPython/\{ESP32,RP2040\}/P4/main.py} & Programa principal (7 modos) \\
+\code{.../P4/lib/bmp180.py} & Driver BMP180 (compensación completa) \\
+\code{.../P4/lib/siglab.py} & Utilidades de análisis de señales en la placa \\
+\code{.../P4/docs/analisis\_senales.md} & Guía del módulo de análisis \\
+\code{MicroPython/ESP32/P4/tools/altimeter\_gui.py} & Altímetro visual (tkinter) \\
+\code{C++/SISELA-CPP/src/practices/p4.cpp} & Implementación C++ (Wire, 6 modos) \\
+\code{C++/SISELA-CPP/src/common/siglab.h} & \code{siglab} para C++ (header-only) \\
+\code{tools/sisela\_signal/} & Toolkit PC de análisis de señales \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Contexto Aeronáutico Complementario}
+\textbf{El altímetro en la cabina de vuelo.} El altímetro barométrico es un instrumento
+del grupo pitot-estático. La ventana de Kollsman permite al piloto ajustar el QNH.
+\textbf{RVSM} (\emph{Reduced Vertical Separation Minimum}): entre FL290 y FL410 la
+separación vertical mínima se reduce a \SI{1000}{ft}, lo que exige altímetros con una
+tolerancia muy estricta y por eso el énfasis en la caracterización del ruido y la
+resolución efectiva de esta práctica.
+
+\end{document}

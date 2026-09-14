@@ -38,6 +38,19 @@ Esta práctica integra múltiples componentes de las prácticas anteriores (P1-P
 - **Fuente externa** 5-12V para servos y motor DC
 - **GND común** entre ESP32 y fuente externa
 
+### Módulo opcional — Dron con motores 2212
+Materiales adicionales, **solo si se habilita `ENABLE_DRONE`**:
+- **4× motor brushless 2212** (900–1400 KV)
+- **4× ESC** 20–30 A (BLHeli/SimonK, entrada PWM 50 Hz)
+- **4× hélice** a juego con los motores (**NO montar** durante las pruebas de banco)
+- **Batería LiPo 3S** (11.1 V, ≥ 4000 mAh, descarga ≥ 30C) + cargador balanceador
+- **Frame** clase 250–450 (F250/F330/F450) en configuración X
+- **PDB** (power distribution board) o regleta de potencia + fusible
+- Conectores **XT60** (batería) y **bullet 3.5 mm** (ESC↔motor)
+
+Ver [docs/dron_2212.md](docs/dron_2212.md) para especificaciones, presupuesto
+de potencia, cableado y el procedimiento de seguridad completo.
+
 ## Conexiones
 
 ### Sensores (ADC)
@@ -115,12 +128,17 @@ Al iniciar, el sistema mostrará:
 ║  [3] Control de potencia (motor/hélice)                     ║
 ║  [4] Control de tren de aterrizaje                          ║
 ║  [5] Modo automático (piloto automático simple)             ║
-║  [6] Registro de datos (telemetría)                         ║
-║  [7] Diagnóstico del sistema                                ║
-║  [8] Configuración                                          ║
+║  [6] Diagnóstico del sistema                                ║
+║  [7] Configuración                                          ║
+║  [8] Dron: motores 2212 (ESC + mezclador X)  [opcional]     ║
+║  [9] Análisis de señales (cadena / muestreo multicanal)     ║
 ║  [q] Salir                                                  ║
 ╚══════════════════════════════════════════════════════════════╝
 ```
+
+> Nota: esta sección se corrigió para reflejar exactamente los modos de
+> `main.py` (antes describía un modo 6 "Registro de telemetría" que nunca se
+> implementó — ver `docs/VERIFICACION_PRACTICAS.md`, D-25).
 
 ### 3. Modo 1: Panel de instrumentos
 Muestra en tiempo real:
@@ -172,16 +190,7 @@ Sistema automatizado que:
 - Mantiene potencia constante
 - Registro automático de eventos
 
-### 8. Modo 6: Registro de datos
-Telemetría guardada en `/log_telemetry.csv`:
-```csv
-timestamp,altitude,speed,attitude,light,aileron,elevator,throttle,gear
-0.125,1250,185,12.5,850,45,12,75,extended
-0.250,1248,187,11.8,852,43,14,75,extended
-...
-```
-
-### 9. Modo 7: Diagnóstico
+### 8. Modo 6: Diagnóstico
 Verifica el estado de todos los componentes:
 - Test de sensores (rango válido)
 - Test de servos (barrido completo)
@@ -189,13 +198,30 @@ Verifica el estado de todos los componentes:
 - Test de stepper (movimiento y endstop)
 - Reporte de errores y advertencias
 
-### 10. Modo 8: Configuración
-Ajustes del sistema:
-- Calibración de sensores (min/max ADC)
-- Límites de servos (pulse width)
-- Parámetros de motor (frecuencia PWM)
-- Velocidad de stepper (RPM)
-- Intervalo de actualización (Hz)
+### 9. Modo 7: Configuración (rápida)
+- Centrar servos, test rápido de componentes.
+
+### 10. Modo 8: Dron — motores 2212 (opcional)
+Requiere `ENABLE_DRONE = True` en `main.py` y 4× ESC + motores brushless 2212
+conectados (ver [docs/dron_2212.md](docs/dron_2212.md)):
+1. Armar los 4 ESC (con confirmación de seguridad "hélices retiradas").
+2. Test individual de motor (throttle manual, bajo).
+3. Mezclador X: throttle/roll/pitch/yaw por teclado, con parada de
+   emergencia en la barra espaciadora.
+4. Jitter del PWM del ESC (osciloscopio, igual método que P5 modo 5).
+5. **Parada de emergencia**: throttle 0 en los 4 motores + desarmar.
+
+> ⚠️ Retira siempre las hélices para las pruebas de banco. Ver la guía de
+> seguridad completa en [docs/dron_2212.md](docs/dron_2212.md).
+
+### 11. Modo 9: Análisis de señales
+1. Latencia de la cadena sensor → actuador (media, σ, tasa efectiva).
+2. Muestreo multicanal (4 sensores ADC a Fs fija) → CSV para
+   `tools/sisela_signal/`. Guía completa: [docs/analisis_senales.md](docs/analisis_senales.md).
+
+```bash
+python -m sisela_signal spectrum --file cap.csv --col alt_m --psd
+```
 
 ## Verificación
 
@@ -237,15 +263,22 @@ Ajustes del sistema:
 ```
 P8/
 ├── boot.py                 # Banner y configuración inicial
-├── main.py                 # Sistema principal con menú
+├── main.py                 # Sistema principal con menú (9 modos)
 ├── lib/
 │   ├── sensors.py          # Clase para gestión de sensores ADC
 │   ├── flight_controls.py  # Clase para servos (alerones, elevadores)
 │   ├── propulsion.py       # Clase para motor PWM
-│   └── landing_gear.py     # Clase para tren a pasos
+│   ├── landing_gear.py     # Clase para tren a pasos
+│   ├── esc.py               # [opcional] Driver ESC (motores 2212)
+│   ├── quad_mixer.py         # [opcional] Mezclador X para cuadricóptero
+│   └── siglab.py            # Utilidades de análisis de señales en la placa
 ├── assets/
 │   ├── wiring_a4988.mmd    # Diagrama con driver A4988
 │   └── wiring_uln2003.mmd  # Diagrama con driver ULN2003
+├── docs/
+│   ├── oscilograma.md
+│   ├── analisis_senales.md  # Guía de análisis de señales (modo 9)
+│   └── dron_2212.md         # Guía del módulo opcional de dron (modo 8)
 ├── PINES.md                # Resumen de pines
 └── README.md               # Esta documentación
 

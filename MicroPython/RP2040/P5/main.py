@@ -6,6 +6,9 @@ Modos:
   2) Ángulo manual (ingresa valores 0–180)
   3) Pulso directo (us) para calibración
   4) Control por potenciómetro (ADC)
+  5) Jitter de PWM (medición con osciloscopio)
+  6) Muestreo y aliasing (ADC + generador de funciones)
+  7) Respuesta al escalón del servo-lazo (requiere realimentación en ADC)
   q) Salir
 
 Durante cualquier modo, escribe 'm' + ENTER para volver al menú.
@@ -15,6 +18,9 @@ Durante cualquier modo, escribe 'm' + ENTER para volver al menú.
 - Pin ADC: GP26 (ADC0) para potenciómetro
 - ADC 16-bit: 0-65535 (mejor resolución que ESP32)
 - Sin configuración atten() para ADC
+
+Los modos 5–7 se apoyan en el banco (generador + osciloscopio) y en la toolkit PC
+`tools/sisela_signal/`.
 """
 
 # =============================================================================
@@ -30,6 +36,12 @@ except ImportError:
     MICROPYTHON = False
 
 from lib.servo import Servo
+
+try:
+    from siglab import BlockSampler, Stats
+    HAVE_SIGLAB = True
+except ImportError:
+    HAVE_SIGLAB = False
 
 # Parámetros de hardware (RP2040)
 SERVO_PIN = 18            # GP18 (PWM1 A)
@@ -71,6 +83,9 @@ def menu_select(timeout_s=8):
     print("2) Ángulo manual (0–180)")
     print("3) Pulso directo (us)")
     print("4) Control por potenciómetro")
+    print("5) Jitter de PWM (osciloscopio)")
+    print("6) Muestreo y aliasing (ADC + generador)")
+    print("7) Respuesta al escalón del servo-lazo")
     print("q) Salir")
     print("="*48)
     print(f"Selecciona opción (timeout {timeout_s}s): ", end="")
@@ -109,6 +124,47 @@ def check_menu_break():
 
 def _clip(x, a, b):
     return a if x < a else (b if x > b else x)
+
+
+def _make_adc():
+    """
+    Devuelve (read_fn, full_scale_counts, vref). RP2040: ADC de 16 bits
+    (0–65535), rango fijo 0–3.3 V, sin atten().
+    """
+    adc = ADC(ADC_PIN)
+    return (adc.read_u16, 65535, 3.3)
+
+
+def _ask(prompt, default):
+    print("{} [{}]: ".format(prompt, default), end="")
+    if not MICROPYTHON:
+        return default
+    poll = uselect.poll()
+    poll.register(sys.stdin, uselect.POLLIN)
+    while True:
+        if poll.poll(500):
+            s = sys.stdin.readline().strip()
+            if not s:
+                return default
+            try:
+                return type(default)(s)
+            except ValueError:
+                return default
+        time.sleep_ms(100)
+
+
+def wait_enter_p5(msg="ENTER para continuar..."):
+    print(msg, end="")
+    if not MICROPYTHON:
+        return
+    poll = uselect.poll()
+    poll.register(sys.stdin, uselect.POLLIN)
+    while not poll.poll(300):
+        time.sleep_ms(100)
+    try:
+        sys.stdin.readline()
+    except Exception:
+        pass
 
 
 # =============================================================================
@@ -212,6 +268,116 @@ def mode_pot_control():
 
 
 # =============================================================================
+# Modo 5: Jitter de PWM (medición con osciloscopio)
+# =============================================================================
+def mode_pwm_jitter():
+    """Fija un ancho de pulso constante para que el osciloscopio mida su estabilidad."""
+    print("\n--- MODO 5: Jitter de PWM (osciloscopio) ---")
+    if not servo:
+        print("[Error] Servo no inicializado."); return
+    print("Sonda CH1 en la señal del servo (GP{}), pinza a GND.".format(SERVO_PIN))
+    print("Osciloscopio: 1 ms/div, trigger flanco de subida ~1.5 V,")
+    print("Measure -> Pulse Width -> estadística Min/Max/Mean/StdDev.\n")
+    us = _ask("Ancho de pulso a mantener (us)", 1500)
+    hold_s = _ask("Segundos por punto", 30)
+    servo.pulse_us(int(us))
+    duty = None
+    if hasattr(servo, "_pwm") and hasattr(servo._pwm, "duty_u16"):
+        try:
+            duty = servo._pwm.duty_u16()
+        except Exception:
+            duty = None
+    print("Pulso nominal: {} us   periodo: {:.0f} us (50 Hz)".format(int(us), 1_000_000 / SERVO_FREQ))
+    if duty is not None:
+        print("Registro duty_u16 leído: {}  (esperado ~{:.0f})".format(
+            duty, int(us) * 65535 / (1_000_000 / SERVO_FREQ)))
+    print("\nManteniendo {} us durante {} s...  ('m' + ENTER aborta)".format(int(us), int(hold_s)))
+    t0 = time.ticks_ms() if MICROPYTHON else 0
+    while MICROPYTHON:
+        if time.ticks_diff(time.ticks_ms(), t0) / 1000.0 >= hold_s:
+            break
+        if check_menu_break():
+            return
+        time.sleep_ms(200)
+    print("\nExporta la traza del osciloscopio y en la PC:")
+    print("  python -m sisela_signal characterize --scope --file scopeCH1.csv --col CH1 --mode adc")
+    print("\nEsperado: ESP32 σ ~ 100 ns (LEDC), RP2040 σ ~ 10 ns (PWM slice).")
+    wait_enter_p5("\nENTER para volver al menú...")
+
+
+# =============================================================================
+# Modo 6: Muestreo y aliasing (ADC + generador de funciones)
+# =============================================================================
+def mode_sampling_alias():
+    """Muestrea la señal del generador en el ADC a una Fs elegida y emite el bloque en CSV."""
+    print("\n--- MODO 6: Muestreo y Aliasing (ADC + generador) ---")
+    if not HAVE_SIGLAB:
+        print("[ERROR] Falta lib/siglab.py en la placa."); return
+    if not MICROPYTHON:
+        print("[PC] No disponible."); return
+    print("Generador -> GP{}: seno, amplitud <= 2 Vpp, OFFSET +1.65 V (0–3.3 V).".format(ADC_PIN))
+    print("⚠️ Verifica con el osciloscopio que la señal está dentro de 0–3.3 V ANTES de conectar.\n")
+    fs = _ask("Fs de muestreo (Hz)", 2000)
+    n = _ask("Número de muestras", 2048)
+    read_fn, full, vref = _make_adc()
+
+    print("\nCapturando {} muestras a {} Hz...".format(n, fs))
+    res = BlockSampler(read_fn, fs, n).run()
+    print(res.report())
+    print("Nyquist: Fs/2 = {:.1f} Hz. Frecuencias del generador > {:.1f} Hz se pliegan (alias).".format(
+        fs / 2.0, fs / 2.0))
+
+    print("\nt_us,counts,v")
+    for i in range(len(res.samples)):
+        c = res.samples[i]
+        print("{},{},{:.4f}".format(res.t_us[i], c, c / full * vref))
+    print("# fin fs_real={:.2f} jitter_us={:.2f} full_scale={}".format(
+        res.fs_actual, res.jitter_us, full))
+    print("\nEn la PC (repite variando la frecuencia del generador):")
+    print("  python -m sisela_signal spectrum --file cap.csv --col v --metrics --full-scale 3.3")
+    print("  python -m sisela_signal alias    --file cap.csv --true-f <f_generador>")
+    wait_enter_p5("\nENTER para volver al menú...")
+
+
+# =============================================================================
+# Modo 7: Respuesta al escalón del servo-lazo
+# =============================================================================
+def mode_step_response():
+    """Comanda un escalón de ángulo y muestrea la realimentación de posición (ADC)."""
+    print("\n--- MODO 7: Respuesta al Escalón del Servo-lazo ---")
+    if not servo:
+        print("[Error] Servo no inicializado."); return
+    if not HAVE_SIGLAB or not MICROPYTHON:
+        print("[ERROR] Requiere lib/siglab.py y ejecución en placa."); return
+    print("Conecta un potenciómetro de realimentación al eje del servo -> GP{}.".format(ADC_PIN))
+    a0 = _ask("Ángulo inicial", 60)
+    a1 = _ask("Ángulo final", 120)
+    fs = _ask("Fs de muestreo (Hz)", 500)
+    n = _ask("Muestras (cubre el transitorio)", 500)
+    read_fn, full, vref = _make_adc()
+
+    servo.angle(int(a0))
+    time.sleep_ms(600)
+    print("\nEscalón {}° -> {}°  (el escalón ocurre tras ~10 % del bloque)".format(int(a0), int(a1)))
+    print("t_us,counts,v")
+    pre = max(1, n // 10)
+    res_pre = BlockSampler(read_fn, fs, pre).run()
+    servo.angle(int(a1))
+    res_post = BlockSampler(read_fn, fs, n - pre).run()
+    off = res_pre.t_us[-1] if pre else 0
+    for i in range(pre):
+        c = res_pre.samples[i]
+        print("{},{},{:.4f}".format(res_pre.t_us[i], c, c / full * vref))
+    for i in range(n - pre):
+        c = res_post.samples[i]
+        print("{},{},{:.4f}".format(off + res_post.t_us[i], c, c / full * vref))
+    print("# fin escalon={}->{} fs~{}".format(int(a0), int(a1), fs))
+    print("\nEn la PC:")
+    print("  python -m sisela_signal characterize --file step.csv --col v --mode step")
+    wait_enter_p5("\nENTER para volver al menú...")
+
+
+# =============================================================================
 # Main
 # =============================================================================
 def main():
@@ -237,6 +403,12 @@ def main():
             mode_pulse_us()
         elif choice == '4':
             mode_pot_control()
+        elif choice == '5':
+            mode_pwm_jitter()
+        elif choice == '6':
+            mode_sampling_alias()
+        elif choice == '7':
+            mode_step_response()
         elif choice.lower() == 'q':
             print("\n[Salida] Programa terminado.")
             break

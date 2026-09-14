@@ -24,6 +24,13 @@ Modos de operación:
   3) Altímetro barométrico (m y ft, ajuste QNH interactivo)
   4) Monitor CSV continuo (para altimeter_gui.py)
   5) Comparativa de alturas (medición guiada a diferentes niveles)
+  6) Análisis de ruido y muestreo   (captura de bloque + estadística en placa)
+  7) Filtro digital en vivo          (media móvil / mediana / EMA, CSV crudo+filtrado)
+
+Los modos 6 y 7 alimentan la toolkit PC `tools/sisela_signal/`:
+  python -m sisela_signal spectrum     --file cap.csv --col alt_m
+  python -m sisela_signal characterize  --file cap.csv --col alt_m --mode allan
+  python -m sisela_signal filter        --file cap.csv --col alt_raw --kind movavg --n 8
 """
 
 # ============================================================================
@@ -73,6 +80,14 @@ except ImportError:
     import sys
 
 import math
+
+# siglab: utilidades de análisis de señales en la placa (lib/siglab.py).
+# Importa también en CPython (se auto-adapta); en la placa vive en /lib.
+try:
+    from siglab import BlockSampler, Stats, MovAvg, Median, Ema
+    HAVE_SIGLAB = True
+except ImportError:
+    HAVE_SIGLAB = False
 
 # ============================================================================
 # Configuración de hardware — RP2040
@@ -156,6 +171,8 @@ def menu_select(timeout_s=8):
     print("  3) Altímetro barométrico (m / ft)")
     print("  4) Monitor CSV continuo (para visualización)")
     print("  5) Comparativa de alturas")
+    print("  6) Análisis de ruido y muestreo")
+    print("  7) Filtro digital en vivo")
     print("  q) Salir")
     print("=" * 56)
     print(f"  Selecciona opción (timeout: {timeout_s}s): ", end="")
@@ -429,6 +446,114 @@ def mode_height_comparison():
     wait_enter("\n  ENTER para menú...")
 
 # ============================================================================
+# Modo 6: Análisis de ruido y muestreo
+# ============================================================================
+def _ask_int(prompt, default):
+    """Pide un entero por REPL con valor por defecto (timeout largo)."""
+    print(prompt + " [{}]: ".format(default), end="")
+    if not MICROPYTHON:
+        return default
+    while True:
+        v = poll_input(500)
+        if v is not None:
+            try:
+                return int(v) if v.strip() else default
+            except ValueError:
+                return default
+        time.sleep_ms(100)
+
+def mode_noise_sampling():
+    """
+    Captura un bloque de N muestras de altitud a Fs fija y reporta la Fs real,
+    el jitter de muestreo y la estadística de ruido (σ, RMS, resolución efectiva).
+    Emite el bloque en CSV para analizarlo en la PC (espectro, Allan).
+    """
+    print("\n--- MODO 6: Análisis de Ruido y Muestreo ---")
+    if sensor is None:
+        print("[ERROR] Sensor no inicializado."); return
+    if not HAVE_SIGLAB:
+        print("[ERROR] Falta lib/siglab.py en la placa."); return
+
+    oss_dt = [5, 8, 14, 26][sensor.oss]
+    fs_max = int(1000 // (2 * oss_dt + 2))
+    print("OSS={}  → cada lectura ~{} ms  → Fs máx ~{} Hz".format(sensor.oss, 2 * oss_dt + 2, fs_max))
+    fs = _ask_int("Fs de muestreo (Hz)", min(5, fs_max))
+    n = _ask_int("Número de muestras", 256)
+    if fs > fs_max:
+        print("[aviso] Fs solicitada > Fs máx; el firmware no la alcanzará (verás el error en el reporte).")
+
+    print("\nCapturando {} muestras de altitud a {} Hz...".format(n, fs))
+    read_alt = lambda: sensor.read_all(p0=SEA_LEVEL_PRESSURE)[2]
+    res = BlockSampler(read_alt, fs, n).run()
+
+    st = Stats()
+    for x in res.samples:
+        st.add(x)
+    print("\n" + res.report())
+    print("Estadística de altitud:")
+    print("  " + st.report("m"))
+    print("  resolución efectiva ≈ {:.2f} 'bits' sobre un rango de 100 m".format(
+        st.effective_bits(100.0)))
+    print("  (ruido de altitud dominado por el ruido de presión del ADC sigma-delta)")
+
+    print("\n--- CSV del bloque (para la toolkit PC) ---")
+    print("t_us,alt_m")
+    for i in range(len(res.samples)):
+        print("{},{:.3f}".format(res.t_us[i], res.samples[i]))
+    print("# fin  fs_real={:.2f}  jitter_us={:.2f}".format(res.fs_actual, res.jitter_us))
+    print("\nEn la PC:")
+    print("  python -m sisela_signal spectrum     --file cap.csv --col alt_m --psd")
+    print("  python -m sisela_signal characterize  --file cap.csv --col alt_m --mode allan")
+    wait_enter("\nENTER para volver al menú...")
+
+# ============================================================================
+# Modo 7: Filtro digital en vivo
+# ============================================================================
+def mode_live_filter():
+    """
+    Aplica un filtro digital a la altitud en tiempo real y emite CSV con la
+    señal cruda y la filtrada, para comparar en la PC (tiempo + espectro) y
+    medir la respuesta al escalón (subir/bajar el sensor por unas escaleras).
+    """
+    print("\n--- MODO 7: Filtro Digital en Vivo ---")
+    if sensor is None:
+        print("[ERROR] Sensor no inicializado."); return
+    if not HAVE_SIGLAB:
+        print("[ERROR] Falta lib/siglab.py en la placa."); return
+
+    print("Filtros: [1] media móvil N   [2] mediana N   [3] EMA (alpha)")
+    kind = _ask_int("Elige filtro", 1)
+    if kind == 3:
+        a_pct = _ask_int("alpha × 100 (1–100)", 20)
+        filt = Ema(max(1, min(100, a_pct)) / 100.0)
+        label = "ema_a{:.2f}".format(max(1, min(100, a_pct)) / 100.0)
+    else:
+        nwin = _ask_int("N (ventana)", 8)
+        filt = MovAvg(nwin) if kind != 2 else Median(nwin)
+        label = ("movavg_n{}" if kind != 2 else "median_n{}").format(nwin)
+
+    print("\nCSV: t_us,alt_raw,alt_filt   ({})".format(label))
+    print("Mueve el sensor (escaleras) para ver la respuesta al escalón.")
+    print("Presiona 'm' + ENTER para detener.\n")
+    print("t_us,alt_raw,alt_filt")
+
+    start = time.ticks_us() if MICROPYTHON else 0
+    i = 0
+    while True:
+        raw = sensor.read_all(p0=SEA_LEVEL_PRESSURE)[2]
+        y = filt.add(raw)
+        t = time.ticks_diff(time.ticks_us(), start) if MICROPYTHON else i * 200000
+        print("{},{:.3f},{:.3f}".format(t, raw, y))
+        i += 1
+        if check_menu_break():
+            break
+        time.sleep_ms(SAMPLE_RATE_MS)
+    print("# fin n={}".format(i))
+    print("\nEn la PC:")
+    print("  python -m sisela_signal filter        --file cap.csv --col alt_raw --kind movavg --n 8")
+    print("  python -m sisela_signal characterize   --file cap.csv --col alt_filt --mode step")
+
+# ============================================================================
 # Main
 # ============================================================================
 def main():
@@ -458,6 +583,10 @@ def main():
             mode_csv_monitor()
         elif choice == '5':
             mode_height_comparison()
+        elif choice == '6':
+            mode_noise_sampling()
+        elif choice == '7':
+            mode_live_filter()
         elif choice.lower() == 'q':
             print("\n[Salida] Programa terminado.")
             break

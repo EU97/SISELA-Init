@@ -37,6 +37,13 @@ Nota: La opción ULN2003 usa GP26–GP28 y entra en conflicto con ADC; si eliges
 - [5] Piloto automático simple
 - [6] Diagnóstico del sistema
 - [7] Configuración
+- [8] Dron: motores 2212 (ESC + mezclador X) — **opcional**, requiere
+  `ENABLE_DRONE = True` + 4× ESC/motores 2212. Ver
+  [docs/dron_2212.md](docs/dron_2212.md) (seguridad, cableado, presupuesto
+  de potencia) antes de habilitarlo.
+- [9] Análisis de señales (latencia de la cadena / muestreo multicanal). Ver
+  [docs/analisis_senales.md](docs/analisis_senales.md) y la toolkit
+  [`tools/sisela_signal/`](../../../tools/sisela_signal/README.md).
 
 ## 🔧 Ajustes rápidos
 
@@ -58,6 +65,14 @@ Ejecuta el diagnóstico ([6] en el menú):
 - Barrido correcto de servos.
 - Rampa PWM 0% → 50% → 0%.
 - Estado del tren y del endstop reportados correctamente.
+
+## 🚁 Módulo opcional — Dron con motores 2212
+
+Materiales adicionales (solo si `ENABLE_DRONE = True`): 4× motor 2212
+(900–1400 KV), 4× ESC 20–30 A, 4× hélice (**sin montar** en banco), LiPo 3S
+≥4000 mAh + cargador, frame 250–450, PDB/fusible, conectores XT60/bullet.
+Pines: `ESC_PINS = [6, 7, 8, 9]` (GP6–GP9). Ver
+[docs/dron_2212.md](docs/dron_2212.md) para el procedimiento completo.
 
 ## 📚 Notas de portabilidad
 

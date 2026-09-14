@@ -33,6 +33,16 @@ dist/
 .pio/
 .vs/
 
+# LaTeX (manuales) — build/ ya está ignorado arriba
+*.aux
+*.toc
+*.out
+*.lof
+*.lot
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+
 # Node (just in case)
 node_modules/
 reports/

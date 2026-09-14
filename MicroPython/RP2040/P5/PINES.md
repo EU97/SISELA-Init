@@ -65,6 +65,22 @@ mmdc -i assets/wiring.mmd -o assets/wiring.svg -b transparent
 | 2 (Ángulo) | REPL | Ángulo absoluto 0–180° |
 | 3 (Pulso us) | REPL | Pulso directo para calibración |
 | 4 (Potenciómetro) | ADC GP26 | Ángulo proporcional 0–180° |
+| 5 (Jitter PWM) | — | pulso fijo; se mide con el osciloscopio |
+| 6 (Muestreo/aliasing) | **generador → GP26** | bloque CSV `t_us,counts,v` |
+| 7 (Escalón) | potenciómetro de realimentación → GP26 | CSV de la posición durante el transitorio |
+
+## Puntos de medida — Análisis de señales (modos 5–7)
+
+| Punto | Señal | Notas |
+|---|---|---|
+| CH1 osciloscopio → **GP18** | tren de pulsos PWM 50 Hz | 1 ms/div, trigger flanco de subida ~1.5 V; *Measure → Pulse Width → StdDev* (RP2040: σ ~ 10 ns) |
+| CH2 osciloscopio → **GP26** | señal del generador / realimentación | verificar 0–3.3 V |
+| **Generador → GP26** (modo 6) | seno, amplitud ≤ 2 Vpp, **offset +1.65 V**, salida HighZ | ⚠️ el ADC del RP2040 no tolera nada fuera de 0–3.3 V |
+| Potenciómetro de realimentación (modo 7) | cursor → GP26; extremos a 3V3 y GND | acoplado al eje del servo |
+
+> ⚠️ **Protección del ADC:** el RP2040 **no tiene protección de sobretensión** en los
+> pines ADC. Comprueba la señal completa del generador con el osciloscopio **antes** de
+> conectarla. Opcional: divisor + diodos de recorte a GND y 3.3 V.
 
 ## Ventajas del RP2040 para servos
 

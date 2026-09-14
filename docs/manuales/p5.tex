@@ -1,0 +1,614 @@
+\documentclass[11pt]{article}
+\input{preamble}
+\renewcommand{\practnum}{5}
+\renewcommand{\practtitle}{Control de Actuadores I: Modulación por Ancho de Pulso (PWM)\\
+y Servomotores — Análisis de Señales — Énfasis Aeronáutico}
+
+\begin{document}
+\portada
+
+\begin{resumen}
+Esta sesión se enfoca en el control de movimiento para superficies de vuelo mediante
+Modulación por Ancho de Pulso (PWM). El estudiante configura los periféricos de
+temporización del microcontrolador para comandar servomotores estándar, gestiona la
+alimentación de potencia independiente y la lógica de control. La práctica incluye
+cuatro modos base (barrido, ángulo manual, pulso directo, potenciómetro) y tres modos
+de \textbf{análisis de señales}: medición del \emph{jitter} del PWM con osciloscopio,
+demostración de muestreo y \emph{aliasing} inyectando una señal del generador de
+funciones en el ADC, y caracterización de la respuesta al escalón del servo-lazo. Se
+discute la relevancia de los servomecanismos en sistemas de actuación aeronáuticos
+(EMA/EHA, ARINC 429, modos \emph{fail-safe}).
+\end{resumen}
+
+\tableofcontents
+\newpage
+
+% ============================================================================
+\section{Introducción}
+
+El control preciso del movimiento es uno de los pilares de la ingeniería aeronáutica
+moderna. Desde el ajuste de las superficies de control de vuelo (alerones, elevadores,
+timón, flaps, slats) hasta la actuación de válvulas hidráulicas y el tren de aterrizaje,
+se requiere la capacidad de mover componentes a posiciones específicas de forma fiable y
+repetible.
+
+La \textbf{Modulación por Ancho de Pulso} (PWM) es la técnica más extendida para lograr
+este control con actuadores eléctricos. Un servomotor estándar determina su posición
+angular exclusivamente a partir de la duración del pulso activo dentro de un periodo
+fijo de \SI{20}{\milli\second} (\SI{50}{\hertz}). El microcontrolador genera esta señal
+digital y el circuito de control interno del servo la interpreta para posicionar el eje.
+
+En sistemas \emph{fly-by-wire} (FBW), la cadena de actuación es más compleja: una
+computadora de control de vuelo recibe la intención del piloto, calcula las deflexiones
+necesarias y transmite comandos digitales de posición a actuadores electro-hidráulicos
+o electromecánicos mediante buses como ARINC 429 o AFDX. El principio subyacente es el
+mismo: traducir un comando digital en un movimiento mecánico preciso.
+
+Esta práctica añade una dimensión de \textbf{análisis de señales}: el PWM se estudia
+como una forma de onda periódica (espectro de armónicos, estabilidad del flanco), el
+ADC como un sistema de adquisición (muestreo, aliasing, ENOB) y el servo-lazo como un
+sistema dinámico (respuesta al escalón, ancho de banda).
+
+% ============================================================================
+\section{Objetivos de Aprendizaje}
+\begin{enumerate}
+  \item Comprender los principios de PWM: periodo, frecuencia, ciclo de trabajo y ancho
+        de pulso, y su relación con la posición de un servomotor.
+  \item Describir el funcionamiento interno de un servomotor estándar (motor DC, tren de
+        engranajes, potenciómetro de realimentación, circuito de control).
+  \item Configurar el periférico PWM del microcontrolador (ESP32 LEDC / RP2040 PWM
+        slices) para generar señales estables a \SI{50}{\hertz}.
+  \item Calcular los valores de registro (\code{duty\_u16}) necesarios para comandar
+        ángulos específicos (0\si{\degree}, 90\si{\degree}, 180\si{\degree}) derivando la
+        fórmula de mapeo lineal.
+  \item Implementar una clase reutilizable (\code{Servo}) que encapsule la conversión
+        ángulo--pulso--registro.
+  \item Montar el circuito de alimentación dual: fuente externa para el servo con tierra
+        común al MCU.
+  \item \textbf{Medir el \emph{jitter} de la señal PWM} con osciloscopio y comparar la
+        estabilidad entre plataformas (ESP32 vs RP2040).
+  \item \textbf{Demostrar el teorema de Nyquist y el \emph{aliasing}} muestreando con el
+        ADC una señal senoidal del generador de funciones y barriendo su frecuencia por
+        encima de $F_s/2$.
+  \item \textbf{Caracterizar el ADC} (THD, SNR, SINAD, ENOB, SFDR) a partir de una
+        captura senoidal.
+  \item \textbf{Medir la respuesta al escalón del servo-lazo} (tiempo de subida,
+        sobre-oscilación, tiempo de establecimiento, ancho de banda) con realimentación
+        de posición.
+  \item Contextualizar la actuación PWM dentro de sistemas aeronáuticos reales
+        (actuadores EMA/EHA, redundancia, modos \emph{fail-safe}, ARINC 429).
+  \item Documentar resultados en formato AIAA.
+\end{enumerate}
+
+% ============================================================================
+\section{Fundamentos Teóricos}
+
+\subsection{Modulación por Ancho de Pulso}
+El PWM varía el tiempo de encendido $t_\text{on}$ de una señal digital dentro de un
+periodo constante $T$. El ciclo de trabajo es
+\begin{equation}
+  D\,(\%) = \frac{t_\text{on}}{T}\times 100,\qquad T = 1/f.
+\end{equation}
+Para el control de servomotores la frecuencia estándar es $f=\SI{50}{\hertz}$
+($T=\SI{20}{\milli\second}$), heredada de los primeros sistemas de radiocontrol. El
+servomotor no responde al ciclo de trabajo porcentual sino a la \emph{duración absoluta}
+del pulso alto.
+
+\begin{table}[H]\centering
+\caption{Relación pulso--ángulo para servomotores estándar.}
+\begin{tabular}{cccc}
+\toprule
+Ancho de pulso & Ángulo & $D$ (\SI{50}{\hertz}) & \code{duty\_u16} \\
+\midrule
+\SI{1.0}{\milli\second} & 0\si{\degree}   & 5.0\,\%  & 3277 \\
+\SI{1.5}{\milli\second} & 90\si{\degree}  & 7.5\,\%  & 4915 \\
+\SI{2.0}{\milli\second} & 180\si{\degree} & 10.0\,\% & 6554 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{nota}[Rango extendido]
+Algunos servos admiten pulsos de \SIrange{0.5}{2.4}{\milli\second} para recorrido
+ampliado. El firmware del repositorio usa $t_\text{min}=\SI{500}{\micro\second}$ y
+$t_\text{max}=\SI{2400}{\micro\second}$ por defecto, con recorte (\emph{clamp}) para
+evitar daño mecánico. Ajustar estos límites experimentalmente para cada modelo.
+\end{nota}
+
+\subsection{Servomotores estándar (tipo R/C)}
+Un servomotor R/C integra: (1)~un motor DC, (2)~un tren de engranajes reductor,
+(3)~un potenciómetro de posición acoplado al eje de salida, y (4)~un circuito de
+control (comparador + puente H). El circuito compara el ancho del pulso PWM recibido
+con la posición actual del potenciómetro y gira el motor hasta que ambos coinciden:
+implementa un \textbf{lazo de control cerrado interno}.
+
+\subsection{Cálculos de mapeo PWM}
+El microcontrolador representa el ciclo de trabajo con un registro de 16 bits
+(0--65535). Para $T=\SI{20000}{\micro\second}$:
+\begin{equation}
+  \code{duty\_u16} = \left\lfloor \frac{t_\text{on}\,(\si{\micro\second})}{20000}\times 65535 \right\rfloor.
+\end{equation}
+La función ángulo $\to$ pulso es una interpolación lineal:
+\begin{equation}
+  t_\text{on}(\theta) = t_\text{min} + \frac{\theta - \theta_\text{min}}
+       {\theta_\text{max} - \theta_\text{min}}\,(t_\text{max} - t_\text{min}).
+  \label{eq:map}
+\end{equation}
+
+\begin{table}[H]\centering
+\caption{Cálculos de temporización (rango \SIrange{500}{2400}{\micro\second}).}
+\begin{tabular}{ccccl}
+\toprule
+$\theta$ (\si{\degree}) & $t_\text{on}$ (\si{\micro\second}) & $D$ (\%) & \code{duty\_u16} & Contexto \\
+\midrule
+0   & 500  & 2.50  & 1638 & Extremo izquierdo \\
+45  & 975  & 4.88  & 3194 & --- \\
+90  & 1450 & 7.25  & 4751 & Posición central \\
+135 & 1925 & 9.63  & 6308 & --- \\
+180 & 2400 & 12.00 & 7864 & Extremo derecho \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Resolución angular}
+Con un registro de 16 bits, la resolución teórica es
+\begin{equation}
+  \Delta\theta = \frac{\theta_\text{max}-\theta_\text{min}}
+    {\code{duty\_max}-\code{duty\_min}} = \frac{180\si{\degree}}{7864-1638}
+    \approx \SI{0.029}{\degree/bit}.
+\end{equation}
+En la práctica la resolución la limita la mecánica del servo (juego de engranajes,
+histéresis del potenciómetro), típicamente 1--2\si{\degree} para SG90/MG90S.
+
+\subsection{PWM en ESP32 vs RP2040}
+\begin{table}[H]\centering
+\caption{Comparativa de subsistemas PWM.}
+\begin{tabular}{lll}
+\toprule
+Aspecto & ESP32 (LEDC) & RP2040 (PWM slices) \\
+\midrule
+Canales & 16 independientes & 8 slices $\times$ 2 = 16 \\
+Resolución & configurable (1--20 bits) & fija 16 bits \\
+\emph{Jitter} típico & $\sim\SI{100}{\nano\second}$ & $\sim\SI{10}{\nano\second}$ \\
+Pin servo (repo) & GPIO18 & GP18 (PWM1 A) \\
+Pin ADC (repo) & GPIO34 & GP26 (ADC0) \\
+Resolución ADC & 12 bits (0--4095) & 12 bits empacados en 16 (0--65535) \\
+Config.\ ADC & \code{atten(11dB)} requerido & sin configuración \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{nota}[C++/Arduino en RP2040]
+El core Arduino para RP2040 usa por defecto \code{analogRead} de \textbf{10 bits}
+(0--1023). El firmware C++ de esta práctica llama \code{analogReadResolution(12)} en
+\code{setup()} para igualar la resolución de MicroPython.
+\end{nota}
+
+\subsection{Contexto aeronáutico: actuadores de control de vuelo}
+En aeronaves \emph{fly-by-wire}, las superficies de control no se mueven por cables
+mecánicos sino por actuadores que reciben comandos eléctricos digitales:
+\begin{enumerate}
+  \item \textbf{Actuadores electro-hidráulicos} (EHA): motor eléctrico que acciona una
+        bomba hidráulica local (A380, F-35).
+  \item \textbf{Actuadores electromecánicos} (EMA): motor eléctrico con reductora; los
+        más cercanos al servomotor R/C, pero con potencias de kW, sensores LVDT/RVDT y
+        redundancia triple.
+  \item \textbf{Actuadores hidráulicos convencionales}: cilindros alimentados por un
+        sistema hidráulico central (3000/5000 psi).
+\end{enumerate}
+La cadena funcional es análoga: comando digital $\to$ conversión a movimiento $\to$
+retroalimentación de posición.
+
+\begin{nota}[ARINC 429 Label 101 y 270]
+En un sistema de control de vuelo integrado, los comandos de posición viajan como
+palabras ARINC 429 de 32 bits: la Label 101 (\emph{Aileron Command}) y la Label 270
+(\emph{Flap Command}) transportan el ángulo deseado en formato BNR. El actuador valida
+la paridad, verifica el campo SSM y extrae los bits de datos antes de ejecutar el
+movimiento.
+\end{nota}
+
+\subsection{Modos de falla segura}
+En sistemas aeronáuticos certificados, la pérdida de la señal de comando nunca debe
+dejar una superficie en posición descontrolada. Los modos \emph{fail-safe} típicos son:
+retorno a neutro, congelamiento (\emph{hold last}) y desacoplamiento mecánico. El
+firmware del repositorio implementa un concepto similar: al seleccionar \code{q}, el PWM
+se desactiva (\code{deinit()}), lo que hace que muchos servos regresen gradualmente a la
+posición central por ausencia de señal.
+
+% ============================================================================
+\section{Consideraciones de Seguridad y Buenas Prácticas}
+\begin{enumerate}
+  \item \textbf{Alimentación externa}: nunca alimentar el servo desde los pines 3.3 V o
+        5 V del microcontrolador. Los picos de corriente del motor pueden reiniciar el
+        MCU, introducir ruido en el ADC o dañar el regulador.
+  \item \textbf{Tierra común}: conectar la tierra de la fuente del servo a la del MCU.
+        Sin esta referencia común la señal PWM no se interpreta correctamente.
+  \item \textbf{Límites mecánicos}: evitar forzar el servo más allá de sus topes físicos.
+  \item \textbf{Condensador de desacoplo}: \SIrange{470}{1000}{\micro\farad} electrolítico
+        entre VCC y GND del servo, lo más cerca posible del conector.
+  \item \textbf{Protección del ADC} (modos de análisis): la salida del generador de
+        funciones debe mantenerse dentro de \SIrange{0}{3.3}{\volt} (amplitud
+        $\le\SI{2}{Vpp}$, \emph{offset} $+\SI{1.65}{\volt}$). Verificar con el
+        osciloscopio antes de conectar. Un pico negativo daña el pin.
+\end{enumerate}
+
+% ============================================================================
+\section{Equipo y Materiales}
+\begin{table}[H]\centering
+\caption{Lista de componentes.}
+\begin{tabular}{cll}
+\toprule
+Cant.\ & Componente & Especificación \\
+\midrule
+1 & Microcontrolador & ESP32 DevKit / Raspberry Pi Pico (RP2040) \\
+1 & Servomotor & SG90, MG90S o MG996R (R/C estándar, \SI{50}{\hertz}) \\
+1 & Fuente de alimentación & 5 V / 1--2 A, independiente del MCU \\
+1 & Potenciómetro & \SI{10}{\kilo\ohm} lineal (modo 4 y realimentación modo 7) \\
+1 & Condensador & \SIrange{470}{1000}{\micro\farad} / 10 V electrolítico \\
+1 & Protoboard + cables Dupont & --- \\
+1 & Generador de funciones & seno hasta $\ge\SI{10}{\kilo\hertz}$, con \emph{offset} DC \\
+1 & Osciloscopio & 2 canales, función \emph{Measure} de ancho de pulso \\
+--- & PC & Python 3.10+ con \code{tools/sisela\_signal/} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================================================
+\section{Etapa de Diseño}
+
+\subsection{Circuito de conexión (alimentación dual)}
+\begin{figure}[H]\centering
+\begin{tikzpicture}[node distance=1.4cm]
+  \node[block] (mcu) {MCU\\(ESP32 / RP2040)};
+  \node[block, right=3.2cm of mcu] (servo) {Servomotor\\(SG90 / MG996R)};
+  \node[term, above=1cm of servo] (fuente) {Fuente 5 V\\(externa)};
+  \draw[flow] (mcu.east) -- node[above,font=\scriptsize]{PWM 50 Hz (señal)} (servo.west);
+  \draw[flow] (fuente) -- node[right,font=\scriptsize]{VCC} (servo);
+  \draw[thick] (mcu.south) |- ++(0,-0.8) -| (servo.south)
+        node[midway,below,font=\scriptsize]{GND común};
+  \node[term, below=1.8cm of mcu, font=\scriptsize] (pot) {Pot.\ 10k$\Omega$};
+  \draw[dashed,-{Latex}] (pot) -- node[left,font=\scriptsize]{ADC} (mcu.south west);
+\end{tikzpicture}
+\caption{Esquema de conexión con alimentación dual y potenciómetro (modos 4 y 7).}
+\end{figure}
+
+\subsection{Asignación de pines por plataforma}
+\begin{table}[H]\centering
+\caption{Asignación de pines.}
+\begin{tabular}{llll}
+\toprule
+Señal & ESP32 & RP2040 & Descripción \\
+\midrule
+PWM servo & GPIO18 & GP18 (PWM1 A) & señal de control 50 Hz \\
+VCC servo & fuente ext.\ 5 V & VSYS / ext.\ 5 V & alimentación \\
+GND & GND & GND & tierra común \\
+ADC (modos 4, 6, 7) & GPIO34 & GP26 (ADC0) & potenciómetro / generador \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Ejemplo numérico}
+Para $\theta=90\si{\degree}$, $t_\text{min}=\SI{500}{\micro\second}$,
+$t_\text{max}=\SI{2400}{\micro\second}$, usando la ec.~\eqref{eq:map}:
+$t_\text{on} = 500 + \frac{90}{180}(2400-500) = \SI{1450}{\micro\second}$;
+$\code{duty\_u16} = \lfloor 1450\times 65535/20000\rfloor = 4751$.
+
+% ============================================================================
+\section{Procedimiento Experimental}
+
+\subsection{Paso 1: preparación del entorno}
+\begin{enumerate}
+  \item Instalar MicroPython (o configurar PlatformIO con \code{-DPRACTICE=5}).
+  \item Montar el circuito de la figura: servo, fuente externa, tierra común,
+        potenciómetro opcional.
+  \item Verificar con multímetro: 5 V en VCC del servo, 3.3 V en el GPIO del MCU.
+  \item Sincronizar \code{main.py}, \code{boot.py}, \code{lib/servo.py}, \code{lib/siglab.py}.
+\end{enumerate}
+
+\subsection{Caso 1: barrido automático 0\si{\degree}--180\si{\degree}--0\si{\degree}}
+El modo ejecuta un barrido continuo en pasos de 2\si{\degree} cada \SI{20}{\milli\second}.
+Verificar movimiento suave sin vibración excesiva; medir con osciloscopio el ancho de
+pulso en los extremos ($\sim\SI{500}{\micro\second}$ y $\sim\SI{2400}{\micro\second}$).
+
+\subsection{Caso 2: control de ángulo manual}
+Enviar los ángulos 0, 30, 60, 90, 120, 150, 180. Registrar el pulso reportado
+($\si{\micro\second}$) y la posición observada. Medir con osciloscopio el ancho real.
+
+\subsection{Caso 3: calibración por pulso directo}
+Enviar valores en microsegundos para encontrar $t_\text{min,real}$ y $t_\text{max,real}$
+del servo (donde deja de moverse o hace ruido). Si difieren de 500/2400, actualizar
+\code{SERVO\_MIN\_US} / \code{SERVO\_MAX\_US}.
+
+\subsection{Caso 4: control por potenciómetro}
+El modo lee el ADC y mapea el valor a un ángulo. Comparar la suavidad entre ESP32
+(12 bits) y RP2040 (16 bits) si se dispone de ambas placas.
+
+\subsection{Caso 5: jitter de PWM (osciloscopio)}
+\begin{enumerate}
+  \item Menú $\to$ 5. Pulso \SI{1500}{\micro\second}, mantener 30 s.
+  \item Osciloscopio: CH1 en la señal del servo, \SI{1}{\milli\second\per div}, trigger
+        flanco de subida $\sim\SI{1.5}{\volt}$.
+  \item \emph{Measure} $\to$ \emph{Pulse Width} con estadística Min/Max/Mean/StdDev.
+  \item Exportar una captura larga a CSV y procesar en la PC:
+\begin{lstlisting}[language=bash]
+python -m sisela_signal characterize --scope --file scopeCH1.csv --col CH1 --mode adc
+\end{lstlisting}
+  \item Repetir en la otra plataforma y comparar $\sigma$ (esperado: ESP32
+        $\sim\SI{100}{\nano\second}$, RP2040 $\sim\SI{10}{\nano\second}$).
+\end{enumerate}
+
+\subsection{Caso 6: muestreo y aliasing (generador $\to$ ADC)}
+\begin{enumerate}
+  \item Generador: seno \SI{1.0}{Vpp}, \emph{offset} \SI{1.65}{\volt},
+        \SI{300}{\hertz}. Verificar con el osciloscopio que está dentro de
+        \SIrange{0}{3.3}{\volt}.
+  \item Conectar a GPIO34 (ESP32) / GP26 (RP2040). Menú $\to$ 6,
+        $F_s=\SI{2000}{\hertz}$, $N=2048$.
+  \item Guardar el CSV. En la PC:
+\begin{lstlisting}[language=bash]
+python -m sisela_signal spectrum --file cap.csv --col v --metrics --full-scale 3.3
+python -m sisela_signal alias    --file cap.csv --true-f 300
+\end{lstlisting}
+  \item Barrer la frecuencia del generador: 900, 1000, 1100, 1700, 2100, 3000 Hz. Para
+        cada una anotar la frecuencia real y la frecuencia aparente (pico del espectro).
+  \item Comprobar que $f_\text{aparente} =
+        \lvert ((f + F_s/2)\bmod F_s) - F_s/2\rvert$.
+\end{enumerate}
+
+\subsection{Caso 7: respuesta al escalón del servo-lazo}
+\begin{enumerate}
+  \item Acoplar un potenciómetro al eje del servo (cursor $\to$ ADC, extremos a 3V3 y GND).
+  \item Menú $\to$ 7. Ángulos 60 $\to$ 120, $F_s=\SI{500}{\hertz}$, $N=500$.
+  \item En la PC:
+\begin{lstlisting}[language=bash]
+python -m sisela_signal characterize --file step.csv --col v --mode step
+\end{lstlisting}
+  \item Repetir con escalones 90 $\to$ 95 (pequeño) y 30 $\to$ 150 (grande). ¿Es lineal
+        la dinámica?
+\end{enumerate}
+
+% ============================================================================
+\section{Análisis de Señales}
+\label{sec:senales}
+
+\subsection{El PWM como forma de onda periódica}
+El tren de pulsos de \SI{50}{\hertz} con ciclo de trabajo $D$ tiene un espectro de
+armónicos en $n\cdot\SI{50}{\hertz}$ cuya envolvente es $\lvert\operatorname{sinc}(nD)\rvert$.
+El parámetro de calidad crítico para un servo es el \textbf{jitter}: la variación del
+ancho de pulso entre periodos, que se traduce en micro-vibración del eje. Se cuantifica
+con la desviación estándar $\sigma$ del ancho de pulso (medida en el osciloscopio o
+sobre el CSV exportado con \code{sisela\_signal characterize}). La ventaja del RP2040
+($\sigma\sim\SI{10}{\nano\second}$ frente a $\sim\SI{100}{\nano\second}$ del ESP32) se
+debe a que el ancho de pulso lo fija directamente el \emph{hardware} del PWM slice, sin
+intervención del temporizador software.
+
+\subsection{Muestreo, Nyquist y aliasing}
+Al muestrear con el ADC a $F_s$ una señal senoidal del generador de frecuencia $f$:
+\begin{itemize}
+  \item Si $f < F_s/2$ (1\textsuperscript{a} zona de Nyquist), el pico aparece en $f$.
+  \item Si $F_s/2 < f < F_s$ (2\textsuperscript{a} zona), aparece un \textbf{alias} en
+        $F_s - f$.
+  \item Si $f = F_s$, el alias cae en DC (la señal parece ``congelada'').
+\end{itemize}
+La frecuencia aparente es
+$f_a = \lvert ((f + F_s/2)\bmod F_s) - F_s/2\rvert$. El experimento del Caso 6 recorre
+varias zonas de Nyquist y verifica esta relación punto por punto.
+
+\subsection{Caracterización del ADC}
+A partir de una captura senoidal limpia (coherente si es posible), la FFT permite
+calcular (norma IEEE 1241):
+\begin{align}
+  \text{THD} &= \sqrt{\textstyle\sum_{k\ge 2} P_k / P_1}, &
+  \text{SINAD} &= 10\log_{10}\!\frac{P_1}{P_\text{ruido}+P_\text{dist}}, \\
+  \text{ENOB} &= \frac{\text{SINAD} - 1.76}{6.02}, &
+  \text{SFDR} &= 10\log_{10}\!\frac{P_1}{P_\text{espurio,max}}.
+\end{align}
+Un ADC de 12 bits nominal presenta un ENOB real de $\sim$9--10 (ESP32 SAR) o $\sim$8.7
+(RP2040, según \emph{datasheet}) por efecto del ruido, la no linealidad y el
+\emph{jitter} de apertura.
+
+\subsection{Respuesta al escalón del servo-lazo}
+El servo es un sistema realimentado (motor + reductora + potenciómetro + comparador).
+Con un potenciómetro de realimentación externo se comanda un escalón de ángulo y se
+mide la posición real: \textbf{tiempo de subida} (10--90\,\%), \textbf{sobre-oscilación},
+\textbf{tiempo de establecimiento} (\(\pm\)\,2\,\%), \textbf{constante de tiempo} $\tau$ y
+\textbf{ancho de banda} $f_{-3\,\text{dB}}\approx 1/(2\pi\tau)$ para un modelo de
+1\textsuperscript{er} orden. Es el análogo de laboratorio de la dinámica de un actuador
+FBW y de los requisitos de ancho de banda de los lazos de control de vuelo.
+
+% ============================================================================
+\section{Registro de Datos y Análisis}
+
+\begin{table}[H]\centering
+\caption{Datos de calibración del servomotor.}
+\begin{tabular}{ccccc}
+\toprule
+$\theta_\text{comando}$ (\si{\degree}) & $t_\text{calc}$ (\si{\micro\second}) &
+$t_\text{medido}$ (\si{\micro\second}) & $\theta_\text{observado}$ (\si{\degree}) & Error (\%) \\
+\midrule
+0   & 500  & & & \\
+30  & 817  & & & \\
+60  & 1133 & & & \\
+90  & 1450 & & & \\
+120 & 1767 & & & \\
+150 & 2083 & & & \\
+180 & 2400 & & & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]\centering
+\caption{Jitter de PWM (Caso 5).}
+\begin{tabular}{ccccc}
+\toprule
+Plataforma & pulso nominal (\si{\micro\second}) & Mean (\si{\micro\second}) &
+StdDev (\si{\nano\second}) & pico-a-pico (\si{\nano\second}) \\
+\midrule
+ESP32  & 1500 & & & \\
+RP2040 & 1500 & & & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]\centering
+\caption{Aliasing ($F_s = \SI{2000}{\hertz}$, Caso 6).}
+\begin{tabular}{cccc}
+\toprule
+$f$ generador (Hz) & zona de Nyquist & $f$ aparente medida (Hz) & alias teórico (Hz) \\
+\midrule
+300  & 1 & & 300 \\
+900  & 1 & & 900 \\
+1100 & 2 & & 900 \\
+1700 & 2 & & 300 \\
+2100 & 3 & & 100 \\
+3000 & 3 & & 1000 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]\centering
+\caption{Caracterización del ADC (Caso 6) y respuesta al escalón (Caso 7).}
+\begin{tabular}{lccccc}
+\toprule
+Plataforma & THD (\%) & SNR (dB) & SINAD (dB) & ENOB (bits) & SFDR (dB) \\
+\midrule
+ESP32  & & & & & \\
+RP2040 & & & & & \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.6em}
+\begin{tabular}{lcccc}
+\toprule
+escalón & t.\ subida (ms) & sobre-oscilación (\%) & t.\ estab.\ \(\pm\)\,2\,\% (ms) & $\tau$ (ms) \\
+\midrule
+60$\to$120 & & & & \\
+90$\to$95  & & & & \\
+30$\to$150 & & & & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Gráficas requeridas}
+\begin{enumerate}
+  \item Ángulo comandado vs ángulo observado (Caso 2) con la recta ideal
+        $\theta_\text{obs}=\theta_\text{cmd}$ superpuesta.
+  \item Histograma de ancho de pulso del PWM (ESP32 vs RP2040) en el mismo eje.
+  \item Espectro de la captura del ADC con el generador a \SI{1100}{\hertz} y
+        $F_s=\SI{2000}{\hertz}$, marcando el alias en \SI{900}{\hertz} y la línea de Nyquist.
+  \item Frecuencia aparente vs frecuencia real (diagrama de plegado) con los puntos de
+        la Tabla de aliasing.
+  \item FFT del seno del ADC con marcadores de armónicos (para el ENOB).
+  \item Respuesta al escalón del servo-lazo con anotaciones de $t_r$, sobre-oscilación y $t_s$.
+\end{enumerate}
+
+% ============================================================================
+\section{Análisis de Resultados}
+\begin{enumerate}
+  \item Linealidad de la actuación: calcular el error porcentual
+        $\epsilon = \lvert(\theta_\text{obs}-\theta_\text{cmd})/\theta_\text{cmd}\rvert\times 100$.
+  \item Límites reales del servo (Caso 3): comparar $t_\text{min,real}$ / $t_\text{max,real}$
+        con los nominales 500/2400 \si{\micro\second}.
+  \item Precisión del osciloscopio: comparar $t_\text{on}$ medido vs calculado para
+        $\ge 3$ ángulos.
+  \item Jitter: ¿la diferencia ESP32 vs RP2040 es observable en la vibración del eje?
+        Relacionarla con la resolución angular (\SI{0.029}{\degree/bit}).
+  \item Aliasing: ¿los puntos medidos de $f$ aparente coinciden con la teoría? ¿Qué pasa
+        exactamente en $f=F_s/2$ y $f=F_s$?
+  \item ENOB: ¿dónde se ``pierden'' los bits respecto al valor nominal de 12? ¿Ruido, no
+        linealidad, jitter?
+  \item Respuesta al escalón: ¿el servo-lazo es de 1\textsuperscript{er} o 2\textsuperscript{o}
+        orden? Justificar con la sobre-oscilación y el ajuste de $\tau$.
+\end{enumerate}
+
+% ============================================================================
+\section{Preguntas de Discusión y Refuerzo}
+\begin{enumerate}
+  \item Si el PWM tiene resolución de 16 bits y el rango es \SIrange{500}{2400}{\micro\second},
+        ¿cuál es el cambio de ángulo más pequeño que el software puede representar? ¿Es
+        ese el límite real del sistema o la mecánica impone una cota mayor?
+  \item Explicar por qué la tierra común (GND) entre MCU y servo es indispensable. ¿Qué
+        sucede si se omite?
+  \item El PWM del servo es de \SI{50}{\hertz}. Si muestrearas esa señal con el ADC a
+        \SI{80}{\hertz}, ¿qué frecuencia aparente verías? ¿Y a \SI{100}{\hertz} exactos?
+  \item Comparar un servo R/C con un actuador electromecánico (EMA) certificado para
+        aviación: potencia, velocidad, precisión, sensores de posición, redundancia,
+        costo, certificación (DO-178C / DO-254).
+  \item En un sistema \emph{fly-by-wire}, el comando de posición viaja como una palabra
+        ARINC 429 de 32 bits. Si la Label 101 codifica el ángulo del alerón en BNR con
+        resolución de \SI{0.005}{\degree}, ¿cuántos bits de datos se necesitan para cubrir
+        $\pm 30\si{\degree}$?
+  \item ¿Cuál es la ventaja del RP2040 (\emph{jitter} PWM $\sim\SI{10}{\nano\second}$)
+        frente al ESP32 ($\sim\SI{100}{\nano\second}$) para aplicaciones de actuación de
+        precisión?
+  \item Con $F_s=\SI{2000}{\hertz}$, un tono de \SI{2100}{\hertz} aparece en
+        \SI{100}{\hertz}. ¿Cómo lo distinguirías de un tono real de \SI{100}{\hertz} sin
+        cambiar la frecuencia del generador? (Pista: cambia $F_s$.)
+  \item Un ADC de 12 bits tiene ENOB $\approx 9$. ¿Dónde se han ``perdido'' los 3 bits?
+  \item Si añades un filtro de media móvil al comando de ángulo para ``suavizar'' el
+        movimiento, ¿qué le pasa al ancho de banda del actuador?
+  \item Diseñar (conceptualmente) un modo \emph{fail-safe}: si el MCU no recibe comandos
+        válidos durante 3 s, el servo debe regresar a 90\si{\degree}. Describir el algoritmo.
+\end{enumerate}
+
+% ============================================================================
+\section{Entregables (Formato AIAA)}
+\begin{enumerate}
+  \item Código fuente: \code{main.py} + \code{lib/servo.py} + \code{lib/siglab.py}
+        (o \code{p5.cpp} + \code{common/siglab.h}).
+  \item Tabla de calibración completa (7 ángulos con pulsos calculados, medidos y error).
+  \item Capturas de osciloscopio: $\ge 3$ ángulos mostrando $t_\text{on}$ y $T$.
+  \item Tabla de jitter (Caso 5) y de aliasing (Caso 6).
+  \item Tabla de ENOB (Caso 6) y de respuesta al escalón (Caso 7).
+  \item Gráficas: las 6 de la \S9.4.
+  \item Análisis: respuestas a $\ge 4$ preguntas de la \S11.
+  \item Conclusiones: hallazgos, fuentes de error, mejoras propuestas.
+  \item Referencias: $\ge 3$ fuentes.
+\end{enumerate}
+
+% ============================================================================
+\section{Referencias}
+\begin{enumerate}
+  \item MicroPython Project. \emph{machine.PWM Documentation}.
+  \item Raspberry Pi Ltd. (2023). \emph{RP2040 Datasheet}, Sec.\ 4.5: PWM.
+  \item Espressif Systems. \emph{ESP32 Technical Reference Manual}, Cap.\ 14: LED Control (LEDC).
+  \item TowerPro. \emph{SG90 Micro Servo Datasheet}.
+  \item ARINC. (2004). \emph{ARINC Specification 429 Part 1}: Mark 33 DITS.
+  \item RTCA. (2011). \emph{DO-178C}: Software Considerations in Airborne Systems.
+  \item Moir, I.\ \& Seabridge, A.\ (2008). \emph{Aircraft Systems}, 3rd ed., Wiley.
+  \item Pratt, R.W. \emph{Flight Control Systems --- Practical Issues in Design and
+        Implementation}, IET, 2000.
+  \item IEEE. \emph{IEEE Std 1241-2010 --- Test Methods for Analog-to-Digital Converters}.
+\end{enumerate}
+
+% ============================================================================
+\appendix
+\section{Código Fuente del Repositorio}
+\begin{table}[H]\centering
+\caption{Archivos relevantes de la Práctica 5.}
+\begin{tabular}{ll}
+\toprule
+Ruta & Descripción \\
+\midrule
+\code{MicroPython/\{ESP32,RP2040\}/P5/main.py} & Programa principal (7 modos) \\
+\code{.../P5/lib/servo.py} & Clase \code{Servo} (mapeo ángulo--pulso) \\
+\code{.../P5/lib/siglab.py} & Utilidades de análisis de señales en la placa \\
+\code{.../P5/docs/analisis\_senales.md} & Guía del módulo de análisis \\
+\code{.../P5/tools/servo\_cli.py} & CLI de control remoto por serie \\
+\code{C++/SISELA-CPP/src/practices/p5.cpp} & Implementación C++ (7 modos) \\
+\code{C++/SISELA-CPP/src/common/\{flight\_controls,siglab\}.h} & Clases comunes \\
+\code{tools/sisela\_signal/} & Toolkit PC de análisis de señales \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Contexto Aeronáutico Complementario}
+\textbf{Evolución de los sistemas de actuación.} (1)~Mecánica directa: cables y poleas
+(Cessna 172). (2)~Hidráulica asistida: el piloto mueve válvulas, la fuerza la proveen
+cilindros hidráulicos (Boeing 737 Classic, A300). (3)~\emph{Fly-by-wire}: señales
+eléctricas reemplazan la conexión mecánica; la computadora de control de vuelo (FCC)
+interpreta la intención del piloto y envía comandos a los actuadores (A320+, B777+,
+F-16, F-35). En FBW la redundancia es mandatoria: un alerón típico tiene dos actuadores
+servidos por canales hidráulicos independientes, cada uno comandado por una FCC diferente
+con software disimilar (para evitar fallas de causa común, según DO-178C).
+
+\end{document}
