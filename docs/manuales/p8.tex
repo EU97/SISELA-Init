@@ -495,11 +495,21 @@ sistemas secundarios.
 
 \subsection{Muestreo multicanal y anti-aliasing}
 El Modo 9$\to$2 muestrea los 4 sensores ADC (altitud, velocidad, actitud, luz) a una
-$F_s$ común y emite un CSV multicanal. Preguntas a resolver: ¿los 4 canales se leen
-realmente al mismo instante o hay un \emph{skew} por leerlos secuencialmente? ¿Qué
-$F_s$ es adecuada dado el ancho de banda físico de cada variable simulada? Con el
-generador de funciones inyectando un seno conocido en un canal (como en P5, Modo 6), se
-puede verificar el aliasing también aquí.
+$F_s$ común y emite un CSV multicanal (\code{t\_us,alt\_m,spd\_kt,att\_deg,lux}) por el
+puerto serie. Preguntas a resolver: ¿los 4 canales se leen realmente al mismo instante o
+hay un \emph{skew} por leerlos secuencialmente? ¿Qué $F_s$ es adecuada dado el ancho de
+banda físico de cada variable simulada? Con el generador de funciones inyectando un seno
+conocido en un canal (como en P5, Modo 6), se puede verificar el aliasing también aquí.
+
+\paragraph{Análisis en la PC.} Capturar el CSV (redirigiendo la salida serie a un
+archivo, o con la toolkit compartida) y luego:
+\begin{lstlisting}[language=bash]
+python -m sisela_signal capture   --port COM5 --menu "9\n2" --out cap.csv
+python -m sisela_signal spectrum  --file cap.csv --col alt_m --psd
+python -m sisela_signal alias     --file cap.csv --col spd_kt --true-f <f_generador>
+\end{lstlisting}
+(el propio firmware imprime estas dos últimas líneas en consola al terminar la captura,
+como recordatorio).
 
 \subsection{Jitter del PWM de los ESC (módulo de dron)}
 Si el módulo opcional de dron (\S\ref{sec:dron}, más abajo) está habilitado, el Modo
