@@ -1,7 +1,15 @@
 # sensors.py — Gestión de sensores ADC para telemetría de vuelo (RP2040)
 # Práctica 8: Sistema Integrado
 
-from machine import ADC, Pin
+try:
+    from machine import ADC, Pin
+except ImportError:  # allow import on PC editors / static verification
+    class Pin:
+        def __init__(self, *a, **kw): pass
+
+    class ADC:
+        def __init__(self, *a, **kw): pass
+        def read_u16(self): return 0
 
 class FlightSensors:
     """

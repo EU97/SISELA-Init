@@ -25,8 +25,22 @@ antes de aceptar comandos:
 Ver docs/dron_2212.md para especificaciones del motor 2212, presupuesto de
 potencia, cableado y procedimiento completo de armado/calibración.
 """
-from machine import Pin, PWM
-import utime
+try:
+    from machine import Pin, PWM
+    import utime
+except ImportError:  # allow import on PC editors / static verification
+    class Pin:
+        def __init__(self, *a, **kw): pass
+
+    class PWM:
+        def __init__(self, *a, **kw): pass
+        def freq(self, v=None): pass
+        def duty_u16(self, v=None): pass
+        def deinit(self): pass
+
+    class utime:
+        @staticmethod
+        def sleep_ms(ms): pass
 
 
 class ESC:

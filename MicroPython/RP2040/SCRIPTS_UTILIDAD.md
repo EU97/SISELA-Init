@@ -334,7 +334,7 @@ notepad $PROFILE
 # Añadir estos alias:
 function rp2040 { Set-Location "C:\Users\edgar\Documents\GitHub\SISELA-Init\MicroPython\RP2040" }
 function esp32 { Set-Location "C:\Users\edgar\Documents\GitHub\SISELA-Init\MicroPython\ESP32" }
-function guia { code "C:\Users\edgar\Documents\GitHub\SISELA-Init\MicroPython\RP2040\GUIA_MIGRACION.md" }
+function verif { code "C:\Users\edgar\Documents\GitHub\SISELA-Init\docs\VERIFICACION_PRACTICAS.md" }
 
 # Guardar y recargar
 . $PROFILE

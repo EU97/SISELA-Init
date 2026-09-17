@@ -660,6 +660,18 @@ Modo 7: Configuración del sistema.
 4. **VSYS:** Alimentación simplificada para servos pequeños (<500 mA)
 5. **30 GPIO:** Suficientes para múltiples sensores y actuadores sin multiplexado
 
+### Modos adicionales (no cubiertos arriba, añadidos después de la fecha de
+### última actualización de esta sección — ver docs dedicados)
+- **Modo 8 — Módulo opcional de dron (motores 2212 + ESC)**: armado
+  *fail-safe*, prueba individual de motor, mezclador X, jitter de PWM de los
+  ESC, parada de emergencia. `lib/esc.py` (`ESC`, `QuadESC`),
+  `lib/quad_mixer.py`. Deshabilitado por defecto (`ENABLE_DRONE = False`).
+  Documentación completa: `MicroPython/{ESP32,RP2040}/P8/docs/dron_2212.md`.
+- **Modo 9 — Análisis de señales**: latencia de la cadena de adquisición,
+  muestreo multicanal + anti-aliasing. Usa `lib/siglab.py`
+  (`BlockSampler`, `Stats`, `stream_csv`).
+  Documentación completa: `MicroPython/{ESP32,RP2040}/P8/docs/analisis_senales.md`.
+
 ---
 
 ## Diferencias clave RP2040 vs ESP32
@@ -725,8 +737,10 @@ Ambos son equivalentes para GPIO básico.
 ### P3 (NTC): RP2040 ≈ ESP32
 Similar, ambos adecuados para termistores.
 
-### P4 (Presión): RP2040 ≈ ESP32
-Similar, aunque MPX5500DP funciona mejor con 5V (usar divisor).
+### P4 (Altímetro BMP180, I2C): RP2040 ≈ ESP32
+Similar; ambos leen el BMP180 por I2C (400 kHz) sin diferencias relevantes de
+precisión. La antigua nota sobre el MPX5500DP (sensor analógico) es histórica —
+ver nota más arriba.
 
 ### P5 (Servo): RP2040 > ESP32
 - **PWM 10× más estable** (jitter ~1 ns vs ~10 ns)
@@ -766,7 +780,8 @@ Ambas plataformas son complementarias y el código MicroPython es **altamente po
 
 ---
 
-**Última actualización:** 2026-09-10 (P4 → BMP180; modos de análisis de señales en P4–P5)
+**Última actualización:** 2026-09-10 (P4 → BMP180; modos de análisis de señales en P4–P5) ·
+2026-09-17 (corregida comparativa P4 obsoleta; añadida nota de Modos 8–9 en P8)
 **Repositorio:** SISELA-Init
 **Plataforma:** RP2040 (Raspberry Pi Pico) + MicroPython v1.24+
 **Nota de alcance:** este documento describe principalmente la variante RP2040/MicroPython.

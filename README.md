@@ -29,7 +29,7 @@ Comparar ambos enfoques permite elegir la herramienta adecuada según restriccio
 	- `src/practices/`: Implementaciones P1..P8 (selección por macro `-DPRACTICE=N`).
 	- `include/pins/`: Tablas de pines unificadas por práctica y plataforma.
 	- `src/common/`: Drivers para servos, PWM, ADC, stepper, etc.
-	- Documentación: `README.md`, `COMPILE_TEST.md`, `IMPLEMENTATION_STATUS.md`, `QUICK_START.md`, `STATUS.txt`.
+	- Documentación: `README.md`, `QUICK_START.md`.
 - `MicroPython/ESP32/` y `MicroPython/RP2040/`: Implementaciones por práctica, checklist y plantillas para documentación, pines y diagramas.
 - Cada práctica tiene su propio `README.md`, `PINES.md`, diagramas y bitácora.
 
@@ -83,8 +83,8 @@ Las prácticas cubren desde GPIO y temporización hasta integración de sensores
 - Selección de práctica y plataforma vía `-DPRACTICE=N` y `env:esp32dev` / `env:pico` en `platformio.ini`
 
 #### MicroPython
-- [ESP32 P1](MicroPython/ESP32/P1/README.md) | [P2](MicroPython/ESP32/P2/README.md) | ...
-- [RP2040 P1](MicroPython/RP2040/P1/README.md) | [P2](MicroPython/RP2040/P2/README.md) | ...
+- ESP32: [P1](MicroPython/ESP32/P1/README.md) | [P2](MicroPython/ESP32/P2/README.md) | [P3](MicroPython/ESP32/P3/README.md) | [P4](MicroPython/ESP32/P4/README.md) | [P5](MicroPython/ESP32/P5/README.md) | [P6](MicroPython/ESP32/P6/README.md) | [P7](MicroPython/ESP32/P7/README.md) | [P8](MicroPython/ESP32/P8/README.md)
+- RP2040: [P1](MicroPython/RP2040/P1/README.md) | [P2](MicroPython/RP2040/P2/README.md) | [P3](MicroPython/RP2040/P3/README.md) | [P4](MicroPython/RP2040/P4/README.md) | [P5](MicroPython/RP2040/P5/README.md) | [P6](MicroPython/RP2040/P6/README.md) | [P7](MicroPython/RP2040/P7/README.md) | [P8](MicroPython/RP2040/P8/README.md)
 
 ## Conexiones y mapeo de pines
 
@@ -120,7 +120,7 @@ Consulta los archivos de cada práctica para detalles, advertencias de voltaje y
 2. Abre `C++/SISELA-CPP/` como proyecto PlatformIO.
 3. Edita `platformio.ini` para seleccionar la práctica (`-DPRACTICE=N`) y plataforma (`env:esp32dev` o `env:pico`).
 4. Compila y sube al hardware.
-5. Consulta `QUICK_START.md` y `COMPILE_TEST.md` para instrucciones detalladas y validación.
+5. Consulta `QUICK_START.md` para instrucciones detalladas, y [docs/VERIFICACION_PRACTICAS.md](docs/VERIFICACION_PRACTICAS.md) §6.2 para la matriz de compilación validada (las 8 prácticas × ESP32/RP2040).
 
 ### MicroPython
 1. Abre la carpeta de la práctica deseada (`MicroPython/ESP32/Pn` o `MicroPython/RP2040/Pn`).
@@ -131,9 +131,8 @@ Consulta los archivos de cada práctica para detalles, advertencias de voltaje y
 ## Documentación y recursos
 
 - [SISELA-CPP/README.md](C++/SISELA-CPP/README.md): detalles del proyecto C++ unificado
-- [COMPILE_TEST.md](C++/SISELA-CPP/COMPILE_TEST.md): guía de compilación y validación
-- [IMPLEMENTATION_STATUS.md](C++/SISELA-CPP/IMPLEMENTATION_STATUS.md): estado y bitácora de implementación
-- [QUICK_START.md](C++/SISELA-CPP/QUICK_START.md): guía rápida de uso y validación
+- [QUICK_START.md](C++/SISELA-CPP/QUICK_START.md): guía rápida de uso, compilación y validación
+- [docs/VERIFICACION_PRACTICAS.md](docs/VERIFICACION_PRACTICAS.md): estado y bitácora de verificación (todas las prácticas, ambas arquitecturas)
 - [CHECKLIST_PRACTICAS.md](MicroPython/ESP32/CHECKLIST_PRACTICAS.md): checklist para prácticas MicroPython
 - Plantillas y ejemplos en `_template/` de cada plataforma
 - Diagramas y documentación técnica en cada carpeta de práctica

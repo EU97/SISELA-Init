@@ -30,8 +30,23 @@
 #        python tools/live_plot.py --port COM3 --baud 115200 --y voltage_v
 #   4. Para graficar CSV exportado ver docs/oscilograma.md.
 
-from machine import ADC, Pin
-from time import ticks_ms, ticks_diff, sleep_ms
+try:
+    from machine import ADC, Pin
+    from time import ticks_ms, ticks_diff, sleep_ms
+except ImportError:  # editor/PC: polyfills para análisis estático
+    class Pin:
+        IN = 1; OUT = 2; PULL_UP = 3
+        def __init__(self, *a, **kw): pass
+        def value(self, v=None): return 0
+
+    class ADC:
+        def __init__(self, *a, **kw): pass
+        def read_u16(self): return 0
+
+    import time as _time
+    def ticks_ms(): return int(_time.time() * 1000)
+    def ticks_diff(a, b): return a - b
+    def sleep_ms(ms): pass
 
 # ------------ Parámetros de adquisición (Caso 1) ------------
 ADC_PIN = 26              # GP26 (ADC0) - Pin físico 31 en Pico

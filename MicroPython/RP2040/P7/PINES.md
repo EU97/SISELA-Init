@@ -48,6 +48,13 @@ Esta práctica soporta **dos controladores de motores paso a paso** diferentes. 
 | GPIO33 | **GP28** | ⚠️ GPIO33 no existe en RP2040 (máx GP28) |
 | GPIO32 | **GP22** | Pin alternativo, misma funcionalidad |
 
+**⚠️ Nota — GP26/GP27/GP28 son los únicos pines ADC del RP2040 (ADC0/ADC1/ADC2).**
+IN1/IN2/IN3 del ULN2003 los usan como GPIO digital, lo cual es válido (P7 no usa
+ADC actualmente), pero **deja sin pines ADC libres** para cualquier extensión futura
+de esta práctica que necesite entrada analógica (p. ej. un potenciómetro de
+velocidad, como el Modo 4 de P6). Si se añade un modo así, mover el ULN2003 a
+otros GPIO digitales (p. ej. GP16–GP19) para liberar GP26–GP28.
+
 **Alimentación:**
 - **VCC Motor**: 5 V, ~200 mA (picos <500 mA)
 - Opciones:

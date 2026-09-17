@@ -3,7 +3,10 @@
 Este directorio incluye utilidades para interactuar con el firmware de servos:
 
 - `servo_cli.py`: envía ángulos o pulsos por el puerto serie (para usar con Modo 2 o 3).
-- `live_plot.py`: permanece del ejercicio anterior; no es necesario para esta práctica.
+- Para captura/análisis de señales de los Modos 5–7 (jitter PWM, muestreo/aliasing,
+  respuesta al escalón), usa la toolkit compartida `tools/sisela_signal` (raíz del repo):
+  `python -m sisela_signal capture --port COM5 --menu 6 --out captura.csv` y
+  `python -m sisela_signal spectrum --file captura.csv --col v`. Ver `docs/analisis_senales.md`.
 
 ## Instalación (Windows)
 
@@ -31,19 +34,6 @@ py servo_cli.py --port COM5 sweep --min 0 --max 180 --step 5 --delay 0.05
 
 # Enviar un pulso de 1500 us (Modo 3)
 py servo_cli.py --port COM5 pulse 1500
-```
-
-## Opciones útiles
-
-```powershell
-# Elegir puerto serie explícitamente
-py live_plot.py --port COM5
-
-# Ventana de 120 s y guardar CSV
-py live_plot.py --window 120 --save datos.csv
-
-# Tomar la primera altitud como cero relativo
-py live_plot.py --alt-zero
 ```
 
 ## Notas

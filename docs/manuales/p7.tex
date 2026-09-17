@@ -474,10 +474,20 @@ vibra pero no gira: intercambiar IN2 e IN3 en el cableado.
 10 pasos para liberar el sensor; si el \emph{endstop} no se detecta en 1000 pasos, aborta
 con mensaje de error.
 
-\subsection{Caso 3: posicionamiento ARINC 429 por terminal serial}
-El firmware recibe una trama hexadecimal (simulando Label 204), valida la paridad impar,
-extrae el ángulo BNR (bits 11--28), calcula la trayectoria mínima ($\Delta$ pasos con
-signo, plegando sobre $\pm\text{SPR}/2$) y mueve el motor en la dirección correspondiente.
+\subsection{Caso 3 (ejercicio de diseño): posicionamiento por ARINC 429 Label 204}
+\begin{nota}
+El firmware actual del repositorio (\code{main.py}, \code{p7.cpp}) \textbf{no}
+implementa la recepción ni decodificación de tramas ARINC 429 — los modos 1--5
+(Tabla anterior) cubren jog, N pasos, barrido, homing e info del driver, todos por
+comandos de texto simple sobre el puerto serie. Lo que sigue es un
+\textbf{ejercicio de diseño/extensión} para practicar la integración con el
+protocolo ya estudiado en las Prácticas 2 y 8, no una funcionalidad presente en el
+código entregado.
+\end{nota}
+Como extensión, el firmware podría recibir una trama hexadecimal (simulando Label 204),
+validar la paridad impar, extraer el ángulo BNR (bits 11--28), calcular la trayectoria
+mínima ($\Delta$ pasos con signo, plegando sobre $\pm\text{SPR}/2$) y mover el motor en
+la dirección correspondiente.
 
 \subsubsection{Ejemplo de cálculo}
 Posición actual $90\si{\degree}$ (1024 pasos). Ángulo objetivo (de ARINC 429):

@@ -18,7 +18,7 @@ import io
 
 import numpy as np
 
-from .dataio import Capture, estimate_fs
+from .dataio import Capture, estimate_fs, _time_scale
 
 
 def load_scope_csv(path: str, fs_hint: float | None = None) -> Capture:
@@ -98,7 +98,11 @@ def _parse_generic(text, fs_hint):
         fs = fs_hint or 1.0
         t = np.arange(v.size) / fs
         return _finish(t, {"ch0": v}, fs)
-    t = rows[:, 0]
+    # Si el encabezado de tiempo indica unidad (t_us, t_ms, ...), convertir a
+    # segundos -- igual que dataio.load_capture -- para no subestimar Fs en
+    # órdenes de magnitud cuando el CSV "genérico" no viene ya en segundos.
+    scale = _time_scale(header[0]) if header else 1.0
+    t = rows[:, 0] * scale
     chans = {}
     names = header[1:] if header and len(header) - 1 == rows.shape[1] - 1 else None
     for i in range(1, rows.shape[1]):

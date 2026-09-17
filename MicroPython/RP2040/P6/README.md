@@ -12,7 +12,7 @@ Esta es la **adaptación para RP2040** (Raspberry Pi Pico) de la práctica origi
 - **PWM más estable**: Jitter ~1 ns (10× mejor que ESP32)
 - **VSYS disponible**: 5V del USB para cargas <500 mA sin fuente externa
 
-Ver [**GUIA_MIGRACION.md**](../../GUIA_MIGRACION.md) para detalles completos de traducción ESP32→RP2040.
+Ver [`docs/VERIFICACION_PRACTICAS.md`](../../../docs/VERIFICACION_PRACTICAS.md) para la comparativa completa ESP32→RP2040.
 
 ## Objetivos
 
@@ -302,4 +302,4 @@ for duty in range(0, 101, 5):
 - **RP2040 PWM Datasheet**: https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf (Sección 4.5)
 - **MicroPython PWM RP2040**: https://docs.micropython.org/en/latest/rp2/quickref.html#pwm-pulse-width-modulation
 - **MOSFET Selection Guide**: https://www.infineon.com/mosfet
-- **Guía de migración ESP32→RP2040**: [GUIA_MIGRACION.md](../../GUIA_MIGRACION.md)
+- **Comparativa ESP32→RP2040**: [docs/VERIFICACION_PRACTICAS.md](../../../docs/VERIFICACION_PRACTICAS.md)

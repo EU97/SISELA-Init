@@ -12,7 +12,13 @@ Atajos del REPL durante la ejecución:
 Nota: Ajusta los pines a tu placa si es necesario.
 """
 
-from machine import Pin
+try:
+    from machine import Pin
+except ImportError:  # editor/PC
+    class Pin:
+        IN = 1; OUT = 2; PULL_UP = 3
+        def __init__(self, *a, **kw): pass
+        def value(self, v=None): return 0
 try:
     import utime as time  # MicroPython
 except ImportError:  # editor/PC

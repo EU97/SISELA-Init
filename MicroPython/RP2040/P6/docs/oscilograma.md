@@ -371,7 +371,7 @@ PWM_FREQ = 50  # 50 Hz (motor responde por inercia)
 - **RP2040 Datasheet** (Sección 4.5 PWM): https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
 - **MicroPython PWM RP2040**: https://docs.micropython.org/en/latest/rp2/quickref.html#pwm-pulse-width-modulation
 - **MOSFET Switching**: https://www.infineon.com/mosfet
-- **Guía de migración ESP32→RP2040**: [../../GUIA_MIGRACION.md](../../GUIA_MIGRACION.md)
+- **Comparativa ESP32→RP2040**: [docs/VERIFICACION_PRACTICAS.md](../../../../docs/VERIFICACION_PRACTICAS.md)
 
 ---
 

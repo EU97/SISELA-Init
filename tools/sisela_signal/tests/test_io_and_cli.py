@@ -52,6 +52,19 @@ def test_scope_generic_two_column(tmp_path):
     assert "CH1" in cap.channels
 
 
+def test_scope_generic_two_column_time_in_microseconds(tmp_path):
+    # El CSV "genérico" de scopeio debe convertir t_us/t_ms a segundos igual
+    # que dataio.load_capture, o subestima Fs en órdenes de magnitud.
+    p = tmp_path / "scope_us.csv"
+    fs = 200000.0
+    t_us = np.arange(1000) * (1e6 / fs)
+    v = np.sin(2 * np.pi * 1000 * t_us * 1e-6)
+    p.write_text("t_us,v\n" + "\n".join(f"{ti:.3f},{vi:.4f}" for ti, vi in zip(t_us, v)))
+    cap = scopeio.load_scope_csv(str(p))
+    assert cap.fs == pytest.approx(fs, rel=1e-3)
+    assert "v" in cap.channels
+
+
 def test_cli_spectrum_smoke(examples_dir, tmp_path):
     out = tmp_path / "spec.png"
     r = subprocess.run(

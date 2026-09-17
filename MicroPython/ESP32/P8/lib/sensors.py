@@ -1,8 +1,24 @@
 # sensors.py — Gestión de sensores ADC para telemetría de vuelo
 # Práctica 8: Sistema Integrado
 
-from machine import ADC, Pin
-import utime
+try:
+    from machine import ADC, Pin
+    import utime
+except ImportError:  # allow import on PC editors / static verification
+    class Pin:
+        def __init__(self, *a, **kw): pass
+
+    class ADC:
+        ATTN_11DB = 3
+        WIDTH_12BIT = 3
+        def __init__(self, *a, **kw): pass
+        def atten(self, v=None): pass
+        def width(self, v=None): pass
+        def read(self): return 0
+
+    class utime:
+        @staticmethod
+        def sleep_ms(ms): pass
 
 class FlightSensors:
     """

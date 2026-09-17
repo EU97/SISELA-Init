@@ -3,7 +3,11 @@ try:
     from machine import Pin
     import utime as time
 except ImportError:
-    Pin = None
+    class Pin:
+        IN = 1; OUT = 2; PULL_UP = 3
+        def __init__(self, *a, **kw): pass
+        def value(self, v=None): return 0
+
     class time:
         @staticmethod
         def sleep_us(us):

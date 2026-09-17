@@ -11,10 +11,40 @@ Modos de la práctica:
 Presiona 'm' + ENTER en cualquier modo para regresar al menú.
 """
 
-import sys
-import uselect
-import utime as time
-from machine import Pin
+try:
+    import sys
+    import uselect
+    import utime as time
+    from machine import Pin
+    MICROPYTHON = True
+except ImportError:
+    print("[PC Mode] Usando polyfills para análisis estático.")
+    MICROPYTHON = False
+    import sys
+
+    class Pin:
+        IN = 1; OUT = 2; PULL_UP = 3
+        def __init__(self, *a, **kw): pass
+        def value(self, v=None): return 0
+
+    class time:
+        @staticmethod
+        def sleep(s): pass
+        @staticmethod
+        def sleep_ms(ms): pass
+        @staticmethod
+        def ticks_ms(): return 0
+        @staticmethod
+        def ticks_diff(a, b): return 0
+
+    class uselect:
+        POLLIN = 1
+        @staticmethod
+        def poll():
+            class _P:
+                def register(self, *a): pass
+                def poll(self, t): return []
+            return _P()
 
 # Importar drivers según disponibilidad
 try:
@@ -99,9 +129,12 @@ def _build_driver(driver_type: str):
 
 
 def _setup_endstop():
-    """Configura el pin de fin de carrera con pull-up interno."""
-    endstop = Pin(ENDSTOP_PIN, Pin.IN, Pin.PULL_UP)
-    return endstop
+    """Configura el pin de fin de carrera con pull-up interno.
+    Devuelve None si el pin no se pudo inicializar."""
+    try:
+        return Pin(ENDSTOP_PIN, Pin.IN, Pin.PULL_UP)
+    except Exception:
+        return None
 
 
 def mode_jog(driver):
@@ -218,7 +251,7 @@ def mode_homing(driver, endstop):
     time.sleep(1)
 
 
-def mode_info(_driver, driver_type: str):
+def mode_info(_driver, driver_type: str, endstop=None):
     """Muestra información del driver actual."""
     print("\n[Modo 5] Info del driver")
     print("Tipo: {}".format(driver_type))
@@ -233,7 +266,7 @@ def mode_info(_driver, driver_type: str):
     print("  RPM por defecto: {}".format(DEFAULT_RPM))
     print("  Fin de carrera: GPIO{} {}".format(
         ENDSTOP_PIN,
-        "(configurado)" if _setup_endstop() else "(no disponible)"
+        "(configurado)" if endstop is not None else "(no disponible)"
     ))
     input("\nPresiona ENTER para regresar al menú...")
 
@@ -279,7 +312,7 @@ def main():
             elif sel == "4":
                 mode_homing(driver, endstop)
             elif sel == "5":
-                mode_info(driver, DRIVER_TYPE)
+                mode_info(driver, DRIVER_TYPE, endstop)
             else:
                 print("Opción no válida.")
     finally:

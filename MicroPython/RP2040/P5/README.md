@@ -11,7 +11,7 @@ Esta es la **adaptación para RP2040** (Raspberry Pi Pico) de la práctica origi
 - **Sin configuración ADC**: No requiere `atten()`, siempre 0–3.3V
 - **VSYS disponible**: 5V del USB para servos pequeños sin fuente externa
 
-Ver [**GUIA_MIGRACION.md**](../../GUIA_MIGRACION.md) para detalles completos de traducción ESP32→RP2040.
+Ver [`docs/VERIFICACION_PRACTICAS.md`](../../../docs/VERIFICACION_PRACTICAS.md) para la comparativa completa ESP32→RP2040.
 
 ## Objetivos
 
@@ -258,4 +258,4 @@ def pid_control(servo, adc, target_angle, kp=1.0, ki=0.1, kd=0.05):
 - **Servo Control Theory**: [docs/oscilograma.md](docs/oscilograma.md)
 - **RP2040 PWM Datasheet**: https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf (Sección 4.5)
 - **MicroPython PWM RP2040**: https://docs.micropython.org/en/latest/rp2/quickref.html#pwm-pulse-width-modulation
-- **Guía de migración ESP32→RP2040**: [GUIA_MIGRACION.md](../../GUIA_MIGRACION.md)
+- **Comparativa ESP32→RP2040**: [docs/VERIFICACION_PRACTICAS.md](../../../docs/VERIFICACION_PRACTICAS.md)

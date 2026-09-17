@@ -4,7 +4,11 @@ try:
     from machine import Pin
     import utime as time
 except ImportError:
-    Pin = None
+    class Pin:
+        IN = 1; OUT = 2; PULL_UP = 3
+        def __init__(self, *a, **kw): pass
+        def value(self, v=None): return 0
+
     class time:
         @staticmethod
         def sleep_us(us):
@@ -12,7 +16,7 @@ except ImportError:
 
 class StepperA4988:
     def __init__(self, step_pin, dir_pin, enable_pin=None, step_pulse_us=5, min_step_interval_us=800):
-        # Nota: evitar nombrar 'self.step' como método y atributo simultáneamente
+        # Evitar colisión entre atributo y método 'step'
         self.step_pin = Pin(step_pin, Pin.OUT)
         self.dir = Pin(dir_pin, Pin.OUT)
         self.en = Pin(enable_pin, Pin.OUT) if enable_pin is not None else None
@@ -23,7 +27,7 @@ class StepperA4988:
 
     def enable(self, state=True):
         if self.en:
-            # A4988 enable es activo en LOW
+            # A4988 enable is LOW active
             self.en.value(0 if state else 1)
 
     def disable(self):
@@ -34,7 +38,7 @@ class StepperA4988:
 
     def step_once(self, interval_us=None):
         iv = interval_us or self.min_interval
-        # Borde ascendente en STEP
+        # STEP rising edge
         self.step_pin.value(1)
         time.sleep_us(self.step_pulse_us)
         self.step_pin.value(0)
@@ -53,13 +57,15 @@ class StepperA4988:
             self.step_once(interval_us)
 
     def move_steps(self, steps, cw=True, interval_us=None):
+        """Alias para compatibilidad."""
         self.set_dir(cw)
         for _ in range(abs(steps)):
             self.step_once(interval_us)
 
     def move_ramped(self, steps, cw=True, iv_start_us=2000, iv_end_us=800):
         """
-        Movimiento con rampa lineal de aceleración/desaceleración.
+        Movimiento con rampa lineal de aceleración.
+        Útil para motores pesados o altas velocidades.
         """
         self.set_dir(cw)
         n = abs(steps)

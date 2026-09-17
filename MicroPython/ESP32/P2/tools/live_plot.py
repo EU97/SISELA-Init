@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""
 """Live plotter for ESP32/RP2040 ADC CSV output (P2).
 
 Reads CSV lines from the serial port and plots a selected column vs t_ms
@@ -10,8 +9,8 @@ Supported CSV formats (auto-detected from header):
   Extended: t_ms,raw,avg,voltage_v,angle_deg,flap_deg,ssm,arinc_hex
 
 Usage (Windows PowerShell):
-  python .\live_plot.py --port COM3 --baud 115200 --y voltage_v
-  python .\live_plot.py --port COM3 --baud 115200 --y flap_deg
+  python .\\live_plot.py --port COM3 --baud 115200 --y voltage_v
+  python .\\live_plot.py --port COM3 --baud 115200 --y flap_deg
 
 Install deps:
   python -m pip install -r requirements.txt

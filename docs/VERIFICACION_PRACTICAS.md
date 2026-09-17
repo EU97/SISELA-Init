@@ -1,7 +1,8 @@
 # Reporte de verificación — Prácticas P1–P8 (SISELA-Init)
 
 **Fecha:** 2026-09-10 (Fase 1) · 2026-09-14 (Fase 2, solo P8) · 2026-09-17 (verificación
-mayor: PlatformIO real, manuales p6–p8, alternativa de trabajo en casa — ver §6)
+mayor: PlatformIO real, manuales p6–p8, alternativa de trabajo en casa — §6; herramientas
+de recolección/despliegue de datos — §7; revisión de integridad completa — §8)
 **Alcance:** auditoría de consistencia entre los **manuales** (`~/Descargas/manuales/Manuales/pN.pdf`,
 generados con LaTeX/MiKTeX, sin fuentes `.tex` en el repo) y las **cuatro implementaciones**:
 MicroPython/ESP32, MicroPython/RP2040, C++/PlatformIO (ESP32) y C++/PlatformIO (RP2040).
@@ -10,7 +11,10 @@ MicroPython/ESP32, MicroPython/RP2040, C++/PlatformIO (ESP32) y C++/PlatformIO (
 
 > **Regla de trabajo del proyecto:** P1–P3 se consideran **cerradas** (no se modifica su código;
 > solo se documentan inconsistencias y se pueden añadir *tools* opcionales). P4–P8 se actualizan
-> para incorporar los paradigmas de análisis de señales.
+> para incorporar los paradigmas de análisis de señales. **Excepción puntual (2026-09-17,
+> §8.5):** a petición explícita del usuario ("haz que todo el código funcione") se extendió a
+> P1/P2 el mismo *guard* de importación PC (D-39) ya aplicado en P4–P8 — un cambio
+> estrictamente aditivo que no altera el comportamiento en hardware real.
 
 ---
 
@@ -223,7 +227,7 @@ Estado: ✅ corregido · ⏳ pendiente (fase indicada) · 📝 solo se documenta
 | D-3 | 🔴 | `README.md` | P4 descrito como MPX5500DP (es BMP180) | 1 | ✅ |
 | D-4 | 🔴 | `REPORTE_FUNCIONES.md` | §P4 describe el sensor MPX5500DP obsoleto | 1 | ✅ |
 | D-7 | 🟠 | `C++/.../src/practices/p4.cpp` | Falta el modo CSV (Caso 4) → `altimeter_gui.py` no funciona en C++ | 1 | ✅ |
-| D-11 | 🟠 | `MicroPython/{ESP32,RP2040}/P6/main.py` | Sin *guard* `try/except`; no importa en PC | 2 | ⏳ (2, no solicitada) |
+| D-11 | 🟠 | `MicroPython/{ESP32,RP2040}/P6/main.py` | Sin *guard* `try/except`; no importa en PC | 8 (revisión de integridad) | ✅ *guard* + polyfills (`Pin`/`PWM`/`ADC`/`time`/`uselect`) añadidos, mismo patrón que P4/P5 |
 | D-14 | 🟠 | `MicroPython/{ESP32,RP2040}/P7/main.py` | Sin perfil trapezoidal de aceleración (Caso 4 manual) | 2 | ⏳ (2, no solicitada) |
 | D-15 | 🟠 | P7 firmware | Sin decodificación ARINC 429 Label 204 | — | 📝 |
 | D-18 | 🟠 | `README.md`, `p8.cpp` | C++ P8 «Template»; MP P8 no sigue las 4 variantes del manual | 2 | ✅ `p8.cpp` ya no es template (9 modos); las 4 variantes ARINC quedan como decisión de diseño documentada |
@@ -236,15 +240,23 @@ Estado: ✅ corregido · ⏳ pendiente (fase indicada) · 📝 solo se documenta
 | D-8 | 🟡 | `MicroPython/ESP32/P4/RESUMEN_P4.md` | Doc sin equivalente en otras prácticas | 1 | 📝 (se conserva; su contenido es correcto) |
 | D-9 | 🟡 | `MicroPython/RP2040/P5/` | Sin carpeta `tools/` | 1 | ✅ |
 | D-10 | 🟡 | `C++/.../p5.cpp` | ADC RP2040 a 10 bit; falta `analogReadResolution(12)` | 1 | ✅ |
-| D-12 | 🟡 | `MicroPython/RP2040/P6/` | Sin `lib/actuator_pwm.py` (sí en ESP32) | 2 | ⏳ (2, no solicitada) |
-| D-13 | 🟡 | `MicroPython/ESP32/P6/docs/SSD1306.md` | Doc no referenciado por el `main.py` | 2 | ⏳ (2, no solicitada) |
-| D-16 | 🟡 | `MicroPython/{ESP32,RP2040}/P7/main.py` | `mode_info`: `_setup_endstop()` en *f-string* | 2 | ⏳ (2, no solicitada) |
-| D-17 | 🟡 | `MicroPython/RP2040/P7/main.py` | ULN2003 en GP26–28 (pines ADC) | 2 | 📝 |
-| D-19 | 🟡 | `README.md` | Enlaces truncados en «Acceso rápido» | 3 | ⏳ 3 |
-| D-20 | 🟠 | `MicroPython/ESP32/P5/{docs/BMP280.md,tools/live_plot.py}` | Restos de plantilla de otra práctica (sensor barométrico en una práctica de servos) | 1 | ✅ `BMP280.md` eliminada; `live_plot.py` se conserva (documentado como *legacy*) |
-| D-21 | 🟡 | `MicroPython/RP2040/P5/{README.md,docs/oscilograma.md}` | Enlaces a `../../GUIA_MIGRACION.md` (no existe en el repo) | 1 | ✅ (oscilograma corregido; README pendiente Fase 3) |
+| D-12 | 🟡 | `MicroPython/ESP32/P6/lib/actuator_pwm.py` | Reinterpretado: **no** es una asimetría ESP32-tiene/RP2040-no-tiene — es código **muerto** en ambos: `main.py` de P6 nunca lo importa (construye el PWM inline), duplica `_set_duty_percent()` | 8 | ✅ archivo eliminado (huérfano, sin referencias en todo el repo) |
+| D-13 | 🟡 | `MicroPython/ESP32/P6/docs/SSD1306.md` | Doc no referenciado por el `main.py` | — | 📝 revisado: es un *stub* de redirección correcto ("Documento reemplazado"), no confunde — sin acción necesaria |
+| D-16 | 🟡 | `MicroPython/{ESP32,RP2040}/P7/main.py` | `mode_info`: `_setup_endstop()` en *f-string*, efecto colateral + el ternario `"(configurado)" if _setup_endstop() else ...` **nunca** podía dar `else` (`_setup_endstop()` siempre devolvía un `Pin` truthy o lanzaba excepción) | 8 | ✅ `_setup_endstop()` ahora captura la excepción y devuelve `None` en fallo; `mode_info()` recibe el `endstop` ya creado por `main()` en vez de recrearlo |
+| D-17 | 🟡 | `MicroPython/RP2040/P7/main.py` | ULN2003 en GP26–28 (pines ADC) | — | 📝 ampliado: nota añadida en `PINES.md` explicando la restricción para quien extienda P7 con un modo ADC futuro |
+| D-19 | 🟡 | `README.md` | Enlaces truncados en «Acceso rápido» | 8 | ✅ lista completa de enlaces a las 16 combinaciones (P1–P8 × ESP32/RP2040), todas verificadas |
+| D-20 | 🟠 | `MicroPython/ESP32/P5/{docs/BMP280.md,tools/live_plot.py}` | Restos de plantilla de otra práctica (sensor barométrico en una práctica de servos): `live_plot.py` esperaba CSV `t_ms,temp_C,press_hPa,press_kPa,altitude_m`, formato que P5 (servo) nunca emite; el propio `tools/README.md` lo documentaba como "legacy" pero luego incluía ejemplos de uso (`--alt-zero`) que lo presentaban como válido. | 1 (reabierto y cerrado en la pasada de herramientas, ver §7) | ✅ `BMP280.md` eliminada (Fase 1); `live_plot.py` **eliminado** y `tools/README.md` reescrito para apuntar a `tools/sisela_signal` (§7) |
+| D-21 | 🟡 | `MicroPython/RP2040/{P5,P6}/{README.md,PINES.md,docs/oscilograma.md}`, `SCRIPTS_UTILIDAD.md` | Ampliado: `GUIA_MIGRACION.md` no existe **en ningún lado** del repo (no solo mal enlazado — el archivo nunca existió), referenciado desde **6 archivos**; además la ruta relativa de P5/README.md línea 14 tenía un nivel de más (`../../` en vez de `../../../`) | 8 | ✅ los 6 enlaces corregidos a `docs/VERIFICACION_PRACTICAS.md` (comparativa real y mantenida); alias de PowerShell en `SCRIPTS_UTILIDAD.md` actualizado |
 | D-22 | 🔴 | `MicroPython/{ESP32,RP2040}/P4/docs/oscilograma.md` | Todo el documento describía el MPX5500DP (CSV `pressure_kPa`, `adc_raw`) — sensor obsoleto | 1 | ✅ reescrito para BMP180 + modos 6–7 |
-| D-23 | 🟠 | `MicroPython/ESP32/P2/tools/live_plot.py` | **Archivo Python roto de origen**: líneas 2–3 son `"""` seguido de `"""Live plotter...` → `SyntaxError` (docstring vacío + apertura de cadena sin cerrar). El script nunca se ha podido ejecutar. `main.py` de P2 no se ve afectado. | 3 (P2 congelada; pendiente de autorización) | ⏳ |
+| D-23 | 🟠 | `MicroPython/ESP32/P2/tools/live_plot.py` | **Archivo Python roto de origen**: líneas 2–3 eran `"""` seguido de `"""Live plotter...` → `SyntaxError` (docstring vacío + apertura de cadena sin cerrar). El script nunca se había podido ejecutar. `main.py` de P2 no se ve afectado (P2 sigue sin cambios de firmware — la regla de "P1–P3 congeladas" solo aplica al código de la placa; el plan siempre permitió *tools* opcionales). | 3 → resuelto en la pasada de herramientas (§7) | ✅ línea duplicada eliminada; de paso se corrigió un `SyntaxWarning` (`\l` sin escapar) en la misma docstring. Verificado: compila, `--help` funciona, y su formato CSV esperado coincide exactamente con el que emite `P2/main.py` (`t_ms,raw,avg,voltage_v,angle_deg,flap_deg,ssm,arinc_hex`) |
+| D-32 | 🔴 | `tools/sisela_signal/scopeio.py::_parse_generic` | La ruta "genérica" para CSV de osciloscopio (usada cuando el archivo no coincide con las firmas Rigol/Siglent/Tektronix) **ignoraba el sufijo de unidad del encabezado de tiempo** (`t_us`, `t_ms`) y asumía siempre segundos — a diferencia de `dataio.load_capture`, que sí lo detecta. Con un CSV `t_us,v` de 1 kHz real, `scope`/`--scope` reportaba Fs≈0.2 Hz y duración≈20000 s (¡1250× fuera!) **sin error**, solo un número silenciosamente incorrecto — riesgo real de que un reporte de laboratorio quede con una Fs o un ancho de banda mal calculado sin que nadie lo note. | 4 (pasada de herramientas, §7) | ✅ reutiliza el mismo `_time_scale()` de `dataio.py`; test de regresión `test_scope_generic_two_column_time_in_microseconds` añadido (38/38 en verde) |
+| D-33 | 🔴 | `MicroPython/ESP32/P8/lib/landing_gear.py` (RP2040 **no** estaba afectado — ver nota) | **Bug funcional severo, nunca antes detectado, específico de ESP32/P8**: (a) `HAS_ULN2003` se ponía en `False` dentro de la propia rama `try` de éxito (typo — debía ser `True`), así que el driver ULN2003 del tren de aterrizaje jamás podía seleccionarse aunque el archivo existiera; (b) **los archivos `stepper_a4988.py`/`stepper_uln2003.py` no existían en absoluto** en `ESP32/P8/lib/` (ni se documentaba copiarlos desde P7) — en hardware real, `LandingGear.__init__()` con driver A4988 (el *default* de `main.py`) **siempre lanzaba `RuntimeError`**; (c) aun con los archivos presentes, `landing_gear.py` llamaba a una API que no existe en ningún driver real del repo: `self.driver.set_direction(1/0)` (ningún driver tiene ese método; el real es `set_dir(cw)`) y `self.driver.step()` sin argumentos (el real exige `step(steps, interval_us=None)`), además del *kwarg* `en_pin=` que no coincide con ningún constructor real (`pin_en` en la variante ESP32/P7, `enable_pin` en la RP2040/P7). El subsistema de tren de aterrizaje de **ESP32**/P8 estaba roto de origen. **Nota:** `RP2040/P8/lib/landing_gear.py` es una implementación *independiente y ya correcta* — ya tenía `HAS_ULN2003=True`, los drivers ya existían en `RP2040/P8/lib/`, y ya usaba un adaptador `_step_once()`/`_set_direction()` con `hasattr()` para tolerar cualquiera de las dos APIs de driver; solo le faltaba el *guard* de importación de `Pin` (ver D-34). | 8 (revisión de integridad) | ✅ copiados `stepper_a4988.py`/`stepper_uln2003.py` (variante RP2040/P7) a `ESP32/P8/lib/`; `HAS_ULN2003` corregido a `True`; llamadas reescritas a la API real (`step(1)`/`step(-1)`, kwarg `enable_pin=`); los mismos 2 archivos en `RP2040/P8/lib/` se sincronizaron a la misma variante (cambio cosmético, la API ya coincidía) además de recibir el mismo *upgrade* de polyfill. Probado de extremo a extremo instanciando `LandingGear` con ambos drivers en ambas plataformas y ejecutando `extend()`/`retract()`/`homing()` con éxito |
+| D-34 | 🟠 | `MicroPython/{ESP32,RP2040}/P7/main.py`, `MicroPython/{ESP32,RP2040}/P8/main.py` + `P8/lib/{sensors,flight_controls,propulsion,esc}.py` | Mismo defecto que D-11 pero nunca catalogado para P7/P8: imports de `machine`/`utime`/`uselect` sin *guard*, y en P8 además 4 módulos de `lib/` con `from machine import ...` directo — nada de P7/P8 podía importarse fuera de la placa (ni siquiera para verificación estática). El polifill de `Pin` en `stepper_a4988.py`/`stepper_uln2003.py` (`Pin = None`) tampoco alcanzaba en cuanto algo instanciaba realmente esas clases. | 8 | ✅ *guard* + polyfills añadidos en los 2 archivos `main.py` de P7 y en `main.py` + 5 archivos de `lib/` de P8 (ambas plataformas, 14 archivos en total); polyfill de `Pin` en los drivers de stepper mejorado a clase completa (antes `Pin = None`, ahora clase con `IN/OUT/PULL_UP` y `value()`) |
+| D-35 | 🟡 | `README.md` (raíz) | Enlaces muertos a `C++/SISELA-CPP/COMPILE_TEST.md`, `IMPLEMENTATION_STATUS.md` y mención de `STATUS.txt` — ninguno de los 3 existe en el repo | 8 | ✅ reemplazados por referencias a `QUICK_START.md` (ya cubre compilación) y `docs/VERIFICACION_PRACTICAS.md` (ya cubre estado/bitácora) |
+| D-36 | 🟡 | `MicroPython/RP2040/README.md` | Listaba `RESUMEN_TRADUCCION.md` y `CHECKLIST_PRACTICAS.md` como documentos "✅" existentes — ninguno de los dos existe en el repo (además de `GUIA_MIGRACION.md`, ver D-21); también describía P4 como "Presión MPX5500DP" (mismo problema que D-3/D-4, pero en este README específico nunca se corrigió) | 8 | ✅ quick-start, tabla de documentación y diagrama de carpetas corregidos para no listar archivos inexistentes (apuntan a `../../README.md` y `../../docs/VERIFICACION_PRACTICAS.md`); descripción de P4 corregida a BMP180 |
+| D-37 | 🟡 | `docs/manuales/p7.tex` §"Caso 3" | El manual recreado en la verificación mayor (§6) describía en tiempo presente "El firmware recibe una trama hexadecimal (simulando Label 204)..." para ARINC 429 — pero P7 **no tiene ninguna línea de código relacionada con ARINC** (grep vacío). Inconsistencia manual↔firmware introducida al recrear el manual desde el PDF original (que sí lo presentaba así). | 8 | ✅ reencuadrado como "Caso 3 (ejercicio de diseño)" con una nota explícita aclarando que no está implementado en el firmware actual; recompilado sin errores (16 pág., sin cambios en warnings) |
+| D-38 | 🟡 | `REPORTE_FUNCIONES.md` | Dos problemas de staleness: (a) comparativa RP2040 vs ESP32 de P4 todavía decía "MPX5500DP funciona mejor con 5V" como si fuera el sensor actual; (b) la sección de P8 solo documenta los Modos 1–7 (base), sin mención de los Modos 8 (dron) y 9 (análisis de señales) añadidos en la Fase 2 | 8 | ✅ comparativa de P4 corregida a BMP180/I2C; nota añadida en P8 señalando los Modos 8–9 y apuntando a `docs/dron_2212.md`/`docs/analisis_senales.md` |
+| D-39 | 🟡 | `MicroPython/{ESP32,RP2040}/P1`, `P2` | **P1 y P2 tampoco importan fuera de la placa** (mismo patrón que D-11/D-34: `machine`/`utime`/`time.ticks_*` sin *guard*, y en P1/P2 además con instanciación de hardware a nivel de módulo — `led1 = make_led(...)`, `adc = ADC(Pin(...))` — que se ejecuta inmediatamente al importar). | 8 (ampliado a petición explícita: "haz que todo el código funcione") | ✅ el usuario autorizó explícitamente extender la corrección a P1/P2 pese a la regla de congelamiento, dado que el *guard* es puramente aditivo (try/except alrededor del import; en la placa real nunca se activa la rama de *fallback*, cero cambio de comportamiento). Aplicado el mismo patrón de *polyfills* que en D-11/D-34 a los 4 archivos (`ESP32/P1`, `RP2040/P1`, `ESP32/P2`, `RP2040/P2`). Las **16 combinaciones** (P1–P8 × ESP32/RP2040) importan limpio en PC. |
 | D-26 | 🔴 | `C++/.../include/pins/pins_types.h`, `pins_esp32.h`, `pins_rp2040.h` | **Todo el C++ nunca había compilado con PlatformIO real** (solo se había verificado con un *stub* de `g++`, ver §5). `Pins`/`StepperA4988Pins`/`StepperULN2003Pins` tienen inicializadores de miembro por defecto, lo que en `-std=gnu++11` (el estándar por defecto de los cores Arduino ESP32/RP2040) les quita la condición de *agregado* → las tablas de pines de **las 8 prácticas** fallaban con `error: could not convert ... to 'Pins'`. | 4 (verificación mayor) | ✅ `-std=gnu++17` en `platformio.ini` |
 | D-27 | 🟠 | `C++/.../src/practices/p1.cpp`, `p7.cpp` | `loop()` llama a `mode_blink/mode_chaser/mode_monitor/mode_integrated` (p1) y `mode_jog/mode_move_n/mode_sweep/mode_homing` (p7) **antes** de su definición en el archivo, sin *forward declaration* → `error: 'mode_X' was not declared in this scope`. Nunca se había compilado realmente. | 4 | ✅ *forward declarations* añadidas |
 | D-28 | 🔴 | `C++/.../src/practices/p4.cpp` | Las variables `B1`/`B2` (coeficientes de calibración BMP180) colisionan con las macros `B0..B11111111` de `binary.h` del core Arduino (`#define B1 1`) → `error: expected unqualified-id before numeric constant` en la propia declaración. Nunca se había compilado realmente. | 4 | ✅ renombradas a `Bc1`/`Bc2` |
@@ -302,8 +314,9 @@ pip install -r tools/sisela_signal/requirements.txt
 PYTHONPATH=tools python -m pytest tools/sisela_signal/tests -q
 
 # Sintaxis MicroPython (los archivos deben compilar/importar en CPython)
-find MicroPython -name '*.py' ! -path '*/P2/tools/live_plot.py' -exec python -m py_compile {} +
-#   (P2/tools/live_plot.py está roto de origen — ver D-23)
+find MicroPython -name '*.py' -exec python -m py_compile {} +
+#   (D-23 corregido en la pasada de herramientas — P2/tools/live_plot.py ya no
+#   necesita excluirse, ver §7)
 
 # C++ — con PlatformIO instalado
 cd C++/SISELA-CPP && pio run -e esp32dev && pio run -e pico
@@ -430,3 +443,168 @@ Sin referencias indefinidas en ningún manual. `p6.tex` y `p7.tex` son recreacio
 completas de los manuales originales (firmware sin cambios) **más** la nueva sección de
 trabajo en casa; `p8.tex` añade además las secciones de Análisis de Señales y del
 módulo opcional de dron ya implementadas en el firmware (Fase 2).
+
+---
+
+## 7. Verificación de herramientas de recolección/despliegue de datos (2026-09-17)
+
+A petición del usuario, se auditaron **todos** los scripts PC de recolección/visualización
+de datos por práctica (`MicroPython/{ESP32,RP2040}/P*/tools/*.py`) y la toolkit compartida
+`tools/sisela_signal/`, no solo su sintaxis sino su **ejecución real** (`--help`, y para la
+toolkit, cada subcomando contra los *fixtures* sintéticos de `examples/`, generando las
+gráficas de verdad con backend `Agg`).
+
+**Inventario:** `P4` (ESP32: `altimeter_gui.py`), `P5` (ESP32: `servo_cli.py`;
+RP2040: `servo_cli.py`), `P2` (ESP32: `live_plot.py`) tienen *tools/* propias; el resto
+(P1, P3, P6, P7, P8) usa multímetro/osciloscopio directo o `tools/sisela_signal` — no es
+un hueco, ya estaba así documentado en §6.3.
+
+**Hallazgos:**
+
+- **D-32 (🔴 nuevo, corregido):** `scopeio.py::_parse_generic` no convertía el sufijo de
+  unidad del encabezado de tiempo (`t_us`/`t_ms`) a segundos — a diferencia de
+  `dataio.load_capture`. Con un CSV genérico de 1 kHz en microsegundos, `scope`/`--scope`
+  calculaba Fs≈0.2 Hz (1250× menor a la real) **sin ningún error**, solo un número
+  silenciosamente equivocado. Corregido reutilizando `dataio._time_scale()`; se añadió
+  `test_scope_generic_two_column_time_in_microseconds` (suite ahora en **38/38**).
+- **D-23 (🟠, finalmente corregido):** `P2/tools/live_plot.py` tenía una línea `"""`
+  duplicada que rompía el módulo desde su creación (nunca se había podido ejecutar). Se
+  eliminó la línea sobrante y se corrigió de paso un `SyntaxWarning` de escape inválido.
+  Verificado que su formato CSV esperado coincide exactamente con el que emite
+  `P2/main.py`.
+- **D-20 (🟠, finalmente corregido):** `P5/tools/live_plot.py` era un resto de plantilla
+  de una práctica de sensor barométrico (BMP280) — P5 es la práctica del servo y **nunca**
+  emite el CSV `temp_C,press_hPa,...` que ese script esperaba. El propio `tools/README.md`
+  lo llamaba "legacy" pero acto seguido incluía ejemplos de uso con `--alt-zero`,
+  contradicción confusa para el estudiante. Se eliminó el script (era código muerto e
+  incorrecto, no solo no-usado) y se reescribió `tools/README.md` para apuntar a
+  `tools/sisela_signal capture`/`spectrum`, que sí cubre el análisis real de los Modos 5–7
+  de P5. `requirements.txt` de P5 (ESP32) también se limpió (`matplotlib` ya no hace falta).
+
+**Confirmado en buen estado (sin cambios):**
+
+- `altimeter_gui.py` (P4): `--help` funciona, *imports* de `tkinter`/`pyserial` con
+  *guards* correctos, no requiere cambios.
+- `servo_cli.py` (P5, ESP32 y RP2040): idénticos entre sí, `--help` funciona, subcomandos
+  `angle`/`pulse`/`sweep` bien definidos.
+- `tools/sisela_signal`: los 7 subcomandos (`capture`, `spectrum`, `alias`, `filter`,
+  `characterize`, `bode`, `scope`) se probaron contra los *fixtures* de `examples/` y
+  producen gráficas correctas y bien etiquetadas (verificado visualmente: espectro con
+  pico limpio en la frecuencia esperada, respuesta al escalón con τ/tr/overshoot
+  anotados, PWM con forma de onda correcta tras el fix de D-32).
+- `RP2040/P4` no tiene carpeta `tools/` propia — **no es un hueco**: su propio `README.md`
+  apunta explícitamente a `MicroPython/ESP32/P4/tools/altimeter_gui.py`, que es agnóstico
+  de placa (script de PC, se conecta por puerto serie sin importar qué MCU corre el
+  firmware).
+
+**Cómo se reprodujo:**
+```bash
+python3 -m venv .venv-tools
+.venv-tools/bin/pip install pyserial matplotlib numpy scipy pytest
+
+# sintaxis + --help de cada script por práctica
+find MicroPython -path "*/tools/*.py" -exec python -m py_compile {} \;
+MPLBACKEND=Agg .venv-tools/bin/python MicroPython/ESP32/P4/tools/altimeter_gui.py --help
+MPLBACKEND=Agg .venv-tools/bin/python MicroPython/ESP32/P2/tools/live_plot.py --help
+.venv-tools/bin/python MicroPython/ESP32/P5/tools/servo_cli.py --help
+
+# toolkit compartida: pruebas + smoke test de cada subcomando
+PYTHONPATH=tools .venv-tools/bin/python -m pytest tools/sisela_signal/tests -q
+MPLBACKEND=Agg PYTHONPATH=tools .venv-tools/bin/python -m sisela_signal spectrum \
+  --file tools/sisela_signal/examples/sine_1k.csv --col v --metrics --full-scale 3.3 \
+  --save /tmp/spectrum.png
+```
+
+---
+
+## 8. Revisión de integridad completa (2026-09-17, pasada final)
+
+A petición explícita del usuario ("ejecuta una revisión completa de todos los detalles
+para verificar completa integridad del proyecto y ejecuciones, así como corregir todo"),
+se hizo una auditoría exhaustiva de **todas** las discrepancias pendientes (⏳/📝) de §3,
+más un escaneo sistemático de enlaces y una verificación de instanciación real (no solo
+importación) de los módulos de P8. Todo lo encontrado se corrigió, incluida una extensión
+posterior a P1/P2 pedida explícitamente por el usuario (ver §8.5).
+
+### 8.1 Discrepancias de firmware resueltas
+D-11 (P6 sin *guard* PC), D-12 (`actuator_pwm.py` muerto), D-16 (bug lógico en
+`mode_info`/`_setup_endstop` de P7) — ver detalle en la tabla de §3. Además se descubrió
+que **P7 y P8 tampoco tenían *guard* de importación** (D-34, nunca antes catalogado) y se
+corrigió en los 14 archivos afectados.
+
+### 8.2 Bug funcional severo en ESP32/P8 — tren de aterrizaje roto de origen (D-33)
+Al probar instanciación real (no solo `import main`, sino crear objetos `LandingGear`,
+`FlightSensors`, etc. y ejercitar sus métodos), se encontró que **el subsistema de tren de
+aterrizaje de ESP32/P8 nunca pudo haber funcionado en hardware real**: los archivos de
+driver (`stepper_a4988.py`/`stepper_uln2003.py`) no existían en `ESP32/P8/lib/`, un
+*typo* dejaba `HAS_ULN2003` siempre en `False`, y las llamadas usaban una API
+(`set_direction()`, `step()` sin argumentos, *kwarg* `en_pin=`) que no coincide con ningún
+driver real del repositorio. **RP2040/P8 no tenía este problema**: es una implementación
+independiente que ya usaba la API correcta con un adaptador tolerante
+(`_step_once`/`_set_direction` vía `hasattr`) — solo le faltaba el *guard* de importación
+de `Pin` para poder verificarse fuera de la placa (D-34). Corregido en ESP32 y
+**verificado de extremo a extremo** en ambas plataformas: se instanció `LandingGear` con
+ambos tipos de driver y se ejecutaron `extend()`, `retract()` y `homing()` con éxito. Esta
+clase de bug (funciona al importar, falla al usar) es precisamente lo que motivó ir más
+allá de `py_compile`/`import` en esta pasada.
+
+### 8.3 Enlaces documentales
+Escaneo automatizado de los 82 archivos `.md` del repo (patrón `]("(...)")`, resolviendo
+rutas relativas): se encontraron y corrigieron **13 enlaces rotos** repartidos en 9
+archivos, incluyendo una "guía de migración" (`GUIA_MIGRACION.md`) referenciada desde 6
+lugares que **nunca existió en el repositorio**, y dos documentos más
+(`RESUMEN_TRADUCCION.md`, `CHECKLIST_PRACTICAS.md`) listados con estado "✅" en
+`MicroPython/RP2040/README.md` que tampoco existen. Al cierre de esta pasada: **0 enlaces
+internos rotos** en todo el repo (los placeholders `path/to/screenshotN.png` de la hoja de
+trabajo de P7/RP2040 se revisaron y son una plantilla intencional para que el estudiante
+inserte su propia captura, no un enlace roto).
+
+### 8.4 Honestidad manual↔firmware (D-37)
+`p7.tex` (recreado en la verificación mayor, §6) describía en tiempo presente una
+funcionalidad ARINC 429 que el firmware actual no implementa. Reencuadrado como ejercicio
+de diseño explícito, con una nota aclaratoria. Recompilado sin errores.
+
+### 8.5 Extensión a P1/P2 (a petición explícita del usuario)
+Tras entregar esta pasada, el usuario pidió explícitamente "corrige todo lo que sea
+necesario... haz que todo el código funcione", lo que se interpretó como autorización
+para extender el *guard* de importación (D-39) también a P1/P2, pese a que están
+"congeladas" — el cambio es puramente aditivo (un `try/except` alrededor de imports que
+en la placa real nunca activa su rama de repuesto) y no altera el comportamiento en
+hardware. Con esto, **las 16 combinaciones (P1–P8 × ESP32/RP2040) importan limpio en
+PC**, no solo P3–P8.
+
+### 8.6 Nota de entorno: *flakiness* del directorio de build de PlatformIO
+Durante la re-verificación final de la matriz C++, compilar hacia el directorio por
+defecto del proyecto (`.pio/build/`) empezó a fallar de forma intermitente y no
+determinista (`fatal error: opening dependency file ...: No such file or directory`,
+distinto archivo cada vez) — confirmado **no relacionado con el código**: (a) se
+descartaron procesos `pio`/`scons` huérfanos concurrentes (había dos, quedaron de una
+interrupción de sesión previa, y se mataron); (b) persistía incluso en compilación
+totalmente secuencial (`-j 1`) y con el *sandbox* de ejecución desactivado; (c)
+**redirigir la salida a `/tmp`** (`PLATFORMIO_BUILD_DIR=/tmp/...`) con el mismo código
+fuente compiló **de forma 100% confiable, las 16 combinaciones**. Causa más probable:
+algún proceso externo (sincronización de la carpeta de `Documentos`, indexador, etc.)
+interfiriendo con la escritura rápida de muchos archivos pequeños dentro del árbol del
+repositorio. **No es necesario ningún cambio en el repo** — si esto se repite, compilar
+con `PLATFORMIO_BUILD_DIR=/tmp/algún_directorio pio run ...` es la solución de
+contorno.
+
+### 8.7 Verificación final
+```
+py_compile (MicroPython, las 8 prácticas × 2 plataformas):        OK
+import main.py sin guard adicional (16 combinaciones):            16/16 OK
+Instanciación real de LandingGear/FlightSensors/... (P8 × 2):     OK
+pytest tools/sisela_signal:                                        38/38
+C++ pio run -e {esp32dev,pico} × 8 prácticas (+ variante ULN2003): 16/16 OK (vía
+  PLATFORMIO_BUILD_DIR=/tmp — ver nota de entorno §8.6)
+Enlaces internos en *.md (82 archivos):                            0 rotos
+docs/materiales/SISELA_Materiales.xlsx (openpyxl):                 íntegro, 6 hojas
+```
+
+**Archivos tocados en esta pasada** (además de los ya listados en §3):
+`MicroPython/{ESP32,RP2040}/{P6,P7}/main.py`,
+`MicroPython/{ESP32,RP2040}/P8/{main.py,lib/{sensors,flight_controls,propulsion,esc,
+landing_gear,stepper_a4988,stepper_uln2003}.py}`,
+`MicroPython/RP2040/P7/PINES.md`, `MicroPython/RP2040/{README.md,SCRIPTS_UTILIDAD.md,
+P5/README.md,P6/{README.md,PINES.md,docs/oscilograma.md}}`, `README.md` (raíz),
+`REPORTE_FUNCIONES.md`, `docs/manuales/p7.tex`.

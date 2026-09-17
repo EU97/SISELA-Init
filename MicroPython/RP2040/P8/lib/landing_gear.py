@@ -1,7 +1,13 @@
 # landing_gear.py — Control de tren de aterrizaje con motor a pasos (RP2040)
 # Práctica 8: Sistema Integrado
 
-from machine import Pin
+try:
+    from machine import Pin
+except ImportError:  # allow import on PC editors / static verification
+    class Pin:
+        IN = 1; OUT = 2; PULL_UP = 3
+        def __init__(self, *a, **kw): pass
+        def value(self, v=None): return 0
 
 # Drivers esperados en lib/: stepper_a4988.py y/o stepper_uln2003.py
 try:

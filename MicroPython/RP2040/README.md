@@ -4,9 +4,10 @@
 
 ¿Primera vez con RP2040? Empieza aquí:
 
-1. **Lee primero**: [`RESUMEN_TRADUCCION.md`](./RESUMEN_TRADUCCION.md) — Estado del proyecto y qué está listo
-2. **Aprende las diferencias**: [`CHECKLIST_PRACTICAS.md`](./CHECKLIST_PRACTICAS.md) — ESP32 vs RP2040
-3. **Migra prácticas**: [`GUIA_MIGRACION.md`](./GUIA_MIGRACION.md) — Cómo adaptar P3-P8
+1. **Lee primero**: [`../../README.md`](../../README.md) — estado del proyecto y tabla de prácticas
+2. **Aprende las diferencias**: [`../../docs/VERIFICACION_PRACTICAS.md`](../../docs/VERIFICACION_PRACTICAS.md) — tabla comparativa ESP32 vs RP2040 por práctica
+3. **Migra prácticas**: cada `PN/PINES.md` documenta sus propios cambios ESP32→RP2040 (sección
+   "Cambios importantes" / "Adaptaciones RP2040"); ver también la comparativa de código más abajo
 4. **Automatiza**: [`SCRIPTS_UTILIDAD.md`](./SCRIPTS_UTILIDAD.md) — Comandos PowerShell útiles
 
 ---
@@ -16,9 +17,9 @@
 | Archivo | Propósito | Estado |
 |---------|-----------|--------|
 | [`README.md`](./README.md) | Este archivo (índice general) | ✅ |
-| [`RESUMEN_TRADUCCION.md`](./RESUMEN_TRADUCCION.md) | Estado completo del proyecto, logros, métricas | ✅ |
-| [`CHECKLIST_PRACTICAS.md`](./CHECKLIST_PRACTICAS.md) | Checklist de 8 prácticas + tabla comparativa | ✅ |
-| [`GUIA_MIGRACION.md`](./GUIA_MIGRACION.md) | Guía detallada P3-P8 con código | ✅ |
+| [`../../README.md`](../../README.md) | Estado del proyecto completo (P1–P8, ambas plataformas) | ✅ |
+| [`../../docs/VERIFICACION_PRACTICAS.md`](../../docs/VERIFICACION_PRACTICAS.md) | Auditoría por práctica, tabla comparativa ESP32/RP2040 | ✅ |
+| `PN/PINES.md` (cada práctica) | Migración de pines y diferencias de API ESP32→RP2040 específicas de esa práctica | ✅ |
 | [`SCRIPTS_UTILIDAD.md`](./SCRIPTS_UTILIDAD.md) | Scripts PowerShell para automatizar | ✅ |
 
 ---
@@ -32,7 +33,7 @@
 | **P1** | [GPIO Básico](./P1/) | LEDs, botones, menú interactivo | `boot.py`, `main.py`, `PINES.md`, `README.md` | 30 min |
 | **P2** | [ADC](./P2/) | Lectura analógica, filtro, CSV | `boot.py`, `main.py`, `PINES.md`, `README.md` | 45 min |
 | **P3** | [Temperatura NTC/LM35](./P3/) | Medición temperatura, ecuación Beta, calibración | `boot.py`, `main.py`, `PINES.md`, `README.md` | 1-2h |
-| **P4** | [Presión MPX5500DP](./P4/) | Sensor presión, conversión ADC a kPa | `boot.py`, `main.py`, `PINES.md`, `README.md` | 1-2h |
+| **P4** | [Altímetro BMP180](./P4/) | Sensor I2C de presión/temperatura, altitud barométrica | `boot.py`, `main.py`, `PINES.md`, `README.md`, `lib/` | 1-2h |
 | **P5** | [Servos PWM](./P5/) | Control servomotores 50 Hz, barrido y pot | `boot.py`, `main.py`, `PINES.md`, `README.md`, `lib/servo.py` | 1-2h |
 | **P6** | [PWM Potencia](./P6/) | Conmutación MOSFET/BJT, control duty cycle | `boot.py`, `main.py`, `PINES.md`, `README.md` | 1h |
 | **P7** | [Steppers](./P7/) | A4988/ULN2003, homing, endstop | `boot.py`, `main.py`, `PINES.md`, `README.md`, `lib/` | 2h |
@@ -134,9 +135,6 @@ GPIO4  → GP16  # GPIO genérico
 ```
 RP2040/
 ├── README.md                    ← Este archivo
-├── RESUMEN_TRADUCCION.md        ← Estado del proyecto
-├── CHECKLIST_PRACTICAS.md       ← Checklist + comparativa
-├── GUIA_MIGRACION.md            ← Guía P3-P8
 ├── SCRIPTS_UTILIDAD.md          ← Scripts PowerShell
 │
 ├── _template/                   ← Plantilla para nuevas prácticas
@@ -245,7 +243,7 @@ Este proyecto es parte de SISELA-Init (EU97). Para contribuir:
 1. Fork el repositorio
 2. Crea una rama para tu práctica (`git checkout -b feature/p3-rp2040`)
 3. Sigue el patrón de P1 y P2
-4. Usa las guías de `GUIA_MIGRACION.md`
+4. Revisa el `PINES.md` de la práctica ESP32 equivalente para las diferencias de API/pines
 5. Commit con mensajes descriptivos
 6. Pull request con descripción detallada
 

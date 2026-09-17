@@ -1,9 +1,22 @@
 # landing_gear.py — Control de tren de aterrizaje con motor a pasos
 # Práctica 8: Sistema Integrado
 
-from machine import Pin
-import utime
-import sys
+try:
+    from machine import Pin
+    import utime
+    import sys
+except ImportError:  # allow import on PC editors / static verification
+    class Pin:
+        IN = 1; OUT = 2; PULL_UP = 3
+        def __init__(self, *a, **kw): pass
+        def value(self, v=None): return 0
+
+    class utime:
+        @staticmethod
+        def sleep_us(us): pass
+        @staticmethod
+        def sleep_ms(ms): pass
+    import sys
 
 # Intentar importar drivers de stepper (deben estar en lib/)
 try:
@@ -14,7 +27,7 @@ except ImportError:
 
 try:
     from stepper_uln2003 import StepperULN2003
-    HAS_ULN2003 = False
+    HAS_ULN2003 = True
 except ImportError:
     HAS_ULN2003 = False
 
@@ -55,7 +68,7 @@ class LandingGear:
             self.driver = StepperA4988(
                 step_pin=pins['step'],
                 dir_pin=pins['dir'],
-                en_pin=pins['en']
+                enable_pin=pins['en']
             )
             self.steps_full_travel = 800  # Aprox. 4 revoluciones
         elif driver_type == "ULN2003" and HAS_ULN2003:
@@ -87,20 +100,17 @@ class LandingGear:
         print("Extendiendo tren de aterrizaje...")
         self.state = self.STATE_MOVING
         
-        # Mover hacia adelante (dirección positiva)
-        self.driver.set_direction(1)
-        
         steps_moved = 0
         max_steps = self.steps_full_travel + 200  # Margen de seguridad
-        
+
         while steps_moved < max_steps:
             if self.is_endstop_triggered():
                 print("Endstop alcanzado - Tren extendido")
                 self.state = self.STATE_EXTENDED
                 self.position_steps = 0  # Resetear posición en endstop
                 return True
-            
-            self.driver.step()
+
+            self.driver.step(1)  # 1 paso, dirección positiva
             steps_moved += 1
             self.position_steps += 1
             
@@ -129,11 +139,8 @@ class LandingGear:
         print(f"Retrayendo tren de aterrizaje ({steps} pasos)...")
         self.state = self.STATE_MOVING
         
-        # Mover hacia atrás (dirección negativa)
-        self.driver.set_direction(0)
-        
         for _ in range(steps):
-            self.driver.step()
+            self.driver.step(-1)  # 1 paso, dirección negativa
             self.position_steps -= 1
             
             interval_us = self._rpm_to_interval(self.rpm_default)
@@ -156,9 +163,8 @@ class LandingGear:
         
         # Retroceder un poco para liberar endstop
         print("Retrocediendo para liberar endstop...")
-        self.driver.set_direction(0)
         for _ in range(50):
-            self.driver.step()
+            self.driver.step(-1)
             interval_us = self._rpm_to_interval(self.rpm_default)
             utime.sleep_us(interval_us)
         

@@ -10,10 +10,52 @@ Modos:
 Presiona 'm' + ENTER en cualquier modo para regresar al menú.
 """
 
-import sys
-import uselect
-import utime as time
-from machine import Pin, PWM, ADC
+try:
+    import sys
+    import uselect
+    import utime as time
+    from machine import Pin, PWM, ADC
+    MICROPYTHON = True
+except ImportError:
+    print("[PC Mode] Usando polyfills para análisis estático.")
+    MICROPYTHON = False
+    import sys
+
+    class Pin:
+        IN = 1; OUT = 2; PULL_UP = 3
+        def __init__(self, *a, **kw): pass
+        def value(self, v=None): return 0
+
+    class PWM:
+        def __init__(self, *a, **kw): pass
+        def duty_u16(self, v=None): pass
+        def duty(self, v=None): pass
+        def deinit(self): pass
+
+    class ADC:
+        ATTN_11DB = 3
+        WIDTH_12BIT = 3
+        def __init__(self, *a, **kw): pass
+        def atten(self, v=None): pass
+        def width(self, v=None): pass
+        def read(self): return 0
+
+    class time:
+        @staticmethod
+        def sleep_ms(ms): pass
+        @staticmethod
+        def ticks_ms(): return 0
+        @staticmethod
+        def ticks_diff(a, b): return 0
+
+    class uselect:
+        POLLIN = 1
+        @staticmethod
+        def poll():
+            class _P:
+                def register(self, *a): pass
+                def poll(self, t): return []
+            return _P()
 
 
 # Configuración de pines/frecuencia

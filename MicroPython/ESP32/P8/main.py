@@ -1,9 +1,34 @@
 # main.py — Sistema Integrado de Control Aeronáutico
 # Práctica 8: Integración de sensores y actuadores
 
-import sys
-import utime
-import uselect
+try:
+    import sys
+    import utime
+    import uselect
+    MICROPYTHON = True
+except ImportError:
+    print("[PC Mode] Usando polyfills para análisis estático.")
+    MICROPYTHON = False
+    import sys
+
+    class utime:
+        @staticmethod
+        def sleep(s): pass
+        @staticmethod
+        def sleep_ms(ms): pass
+        @staticmethod
+        def ticks_us(): return 0
+        @staticmethod
+        def ticks_diff(a, b): return 0
+
+    class uselect:
+        POLLIN = 1
+        @staticmethod
+        def poll():
+            class _P:
+                def register(self, *a): pass
+                def poll(self, t): return []
+            return _P()
 
 # Importar módulos del sistema
 from lib.sensors import FlightSensors
