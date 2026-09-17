@@ -456,6 +456,48 @@ una transacción de lectura completa, y el periodo entre transacciones (igual a 
 del modo activo). El ``tiempo muerto'' del bus indica el margen para aumentar $F_s$.
 
 % ============================================================================
+\section{Alternativa de Trabajo en Casa (Multímetro + Simulación)}
+\label{sec:casa}
+
+Esta práctica es, de las ocho, la que \textbf{menos depende} del laboratorio presencial:
+el BMP180 es un sensor digital y ninguno de sus modos (incluidos los de análisis de
+señales, \S8) requiere osciloscopio ni generador de funciones — toda la adquisición y
+el análisis ocurren en el propio microcontrolador y en la PC. Aun así, se documenta
+aquí qué hacer si no se dispone del módulo físico.
+
+\paragraph{Con multímetro (en casa).} Con el módulo BMP180 alimentado: verificar
+\SI{3.3}{\volt} en VCC. Con el módulo \emph{desconectado} de alimentación: medir con el
+óhmetro la resistencia entre SDA/SCL y 3V3 — debe rondar los \SI{4.7}{\kilo\ohm} de los
+pull-ups del módulo GY-68 (\S3.3); un valor muy distinto indica un pull-up dañado o un
+corto. Verificar continuidad de los 4 cables Dupont.
+
+\paragraph{Con simulación.} No existe un modelo de BMP180 en las versiones gratuitas de
+NI Multisim/Proteus/Wokwi, así que la ``simulación'' de esta práctica es
+\textbf{numérica}: reproducir el algoritmo de compensación (\S3.5–3.6) en una hoja de
+cálculo, Python o el propio modo 2 del firmware (que ya expone cada paso intermedio),
+usando los coeficientes de ejemplo de Bosch (\S6.2) para verificar que la implementación
+es correcta antes de tener el sensor físico en la mano.
+
+\paragraph{Requiere el sensor físico (no sustituible).} La comunicación I2C real y las
+mediciones de altitud/presión de las \S7.3--7.8 solo pueden hacerse con el módulo
+BMP180 conectado; no hay atajo de simulación para esa parte.
+
+\begin{table}[H]\centering
+\caption{Qué requiere laboratorio presencial en esta práctica.}
+\begin{tabular}{lccc}
+\toprule
+Actividad & Multímetro (casa) & Simulación & Requiere BMP180 físico \\
+\midrule
+Verificar VCC / pull-ups & Sí & --- & --- \\
+Verificar algoritmo de compensación & --- & Sí (numérica) & --- \\
+Casos 1--5 (lecturas reales) & --- & --- & Sí \\
+Casos 6--7 (análisis de señales) & --- & --- & Sí (pero sin osciloscopio) \\
+Bus I2C en osciloscopio (\S8.4) & --- & --- & Sí, y osciloscopio \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================================================
 \section{Registro de Datos y Análisis}
 
 \begin{table}[H]\centering

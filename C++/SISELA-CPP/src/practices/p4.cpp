@@ -36,7 +36,7 @@ static uint32_t csvStart = 0;             // t0 para el modo CSV
 static siglab::MovAvg<8> altFilter;       // filtro del modo 7
 
 // Coeficientes de calibración
-static int16_t  AC1, AC2, AC3, B1, B2, MB, MC, MD;
+static int16_t  AC1, AC2, AC3, Bc1, Bc2, MB, MC, MD;
 static uint16_t AC4, AC5, AC6;
 static int32_t  B5_val;   // Cache de B5
 
@@ -97,8 +97,8 @@ static bool read_calibration() {
   AC4 = bmp_read16u(0xB0);
   AC5 = bmp_read16u(0xB2);
   AC6 = bmp_read16u(0xB4);
-  B1  = bmp_read16s(0xB6);
-  B2  = bmp_read16s(0xB8);
+  Bc1  = bmp_read16s(0xB6);
+  Bc2  = bmp_read16s(0xB8);
   MB  = bmp_read16s(0xBA);
   MC  = bmp_read16s(0xBC);
   MD  = bmp_read16s(0xBE);
@@ -141,12 +141,12 @@ static float compensate_temp(int32_t UT) {
 
 static int32_t compensate_pressure(int32_t UP) {
   int32_t B6 = B5_val - 4000;
-  int32_t X1 = ((int32_t)B2 * ((B6 * B6) >> 12)) >> 11;
+  int32_t X1 = ((int32_t)Bc2 * ((B6 * B6) >> 12)) >> 11;
   int32_t X2 = ((int32_t)AC2 * B6) >> 11;
   int32_t X3 = X1 + X2;
   int32_t B3 = ((((int32_t)AC1 * 4 + X3) << OSS) + 2) >> 2;
   X1 = ((int32_t)AC3 * B6) >> 13;
-  X2 = ((int32_t)B1 * ((B6 * B6) >> 12)) >> 16;
+  X2 = ((int32_t)Bc1 * ((B6 * B6) >> 12)) >> 16;
   X3 = ((X1 + X2) + 2) >> 2;
   uint32_t B4 = ((uint32_t)AC4 * (uint32_t)(X3 + 32768)) >> 15;
   uint32_t B7 = ((uint32_t)UP - B3) * (50000UL >> OSS);
@@ -193,7 +193,7 @@ static void run_noise_block() {
   float fsMax = 1000.0f / (2 * dt + 2);
   float fs = fsMax > 5.0f ? 5.0f : fsMax;
   const uint16_t N = 256;
-  Serial.printf("OSS=%d -> Fs max ~%.1f Hz. Capturando %u muestras a %.1f Hz...\n",
+  serialPrintf(Serial, "OSS=%d -> Fs max ~%.1f Hz. Capturando %u muestras a %.1f Hz...\n",
                 OSS, fsMax, N, fs);
 
   siglab::BlockSampler<N> bs(fs);
@@ -203,7 +203,7 @@ static void run_noise_block() {
 
   r.report(Serial);
   st.report(Serial, " m");
-  Serial.printf("resolucion efectiva ~ %.2f 'bits' sobre 100 m\n", st.effectiveBits(100.0));
+  serialPrintf(Serial, "resolucion efectiva ~ %.2f 'bits' sobre 100 m\n", st.effectiveBits(100.0));
   bs.dumpCsv(Serial, r, "alt_m");
   Serial.println("PC: python -m sisela_signal spectrum --file cap.csv --col alt_m --psd");
 }
@@ -216,14 +216,22 @@ namespace practices {
   void setup() {
     Serial.println("\n[P4] Altímetro Barométrico BMP180 (I2C)");
 
+#ifdef ARDUINO_ARCH_ESP32
     Wire.begin(SDA_P, SCL_P);
+#else
+    // El core RP2040 (earlephilhower) no tiene Wire.begin(sda, scl):
+    // los pines se fijan antes con setSDA()/setSCL().
+    Wire.setSDA(SDA_P);
+    Wire.setSCL(SCL_P);
+    Wire.begin();
+#endif
 
-    Serial.printf("I2C: SDA=%d, SCL=%d\n", SDA_P, SCL_P);
+    serialPrintf(Serial, "I2C: SDA=%d, SCL=%d\n", SDA_P, SCL_P);
 
     // Verificar ID
     uint8_t id = bmp_read8(REG_ID);
     if (id != 0x55) {
-      Serial.printf("ERROR: BMP180 no detectado (ID=0x%02X, esperado 0x55)\n", id);
+      serialPrintf(Serial, "ERROR: BMP180 no detectado (ID=0x%02X, esperado 0x55)\n", id);
       Serial.println("Verifica conexiones I2C.");
       return;
     }
@@ -236,16 +244,16 @@ namespace practices {
 
     // Mostrar coeficientes
     Serial.println("\n=== Coeficientes de Calibración ===");
-    Serial.printf("  AC1=%d AC2=%d AC3=%d\n", AC1, AC2, AC3);
-    Serial.printf("  AC4=%u AC5=%u AC6=%u\n", AC4, AC5, AC6);
-    Serial.printf("  B1=%d B2=%d\n", B1, B2);
-    Serial.printf("  MB=%d MC=%d MD=%d\n", MB, MC, MD);
-    Serial.printf("  OSS=%d, QNH=%.1f hPa\n", OSS, SEA_LEVEL_PA / 100.0f);
+    serialPrintf(Serial, "  AC1=%d AC2=%d AC3=%d\n", AC1, AC2, AC3);
+    serialPrintf(Serial, "  AC4=%u AC5=%u AC6=%u\n", AC4, AC5, AC6);
+    serialPrintf(Serial, "  Bc1=%d Bc2=%d\n", Bc1, Bc2);
+    serialPrintf(Serial, "  MB=%d MC=%d MD=%d\n", MB, MC, MD);
+    serialPrintf(Serial, "  OSS=%d, QNH=%.1f hPa\n", OSS, SEA_LEVEL_PA / 100.0f);
 
     // Lectura inicial
     float T; int32_t P; float h;
     read_all(T, P, h);
-    Serial.printf("\nInicial: T=%.1f°C  P=%.2f hPa  Alt=%.1f m\n",
+    serialPrintf(Serial, "\nInicial: T=%.1f°C  P=%.2f hPa  Alt=%.1f m\n",
                   T, P / 100.0f, h);
 
     Serial.println("\n=== Modos ===");
@@ -269,7 +277,7 @@ namespace practices {
       }
     }
 
-    Serial.printf("\nModo: %d\n", mode);
+    serialPrintf(Serial, "\nModo: %d\n", mode);
     csvStart = millis();
     if (mode == 4) Serial.println("timestamp_ms,temp_C,pressure_hPa,altitude_m");
     if (mode == 7) { altFilter = siglab::MovAvg<8>(); Serial.println("t_ms,alt_raw,alt_filt"); }
@@ -304,28 +312,28 @@ namespace practices {
 
     switch (mode) {
       case 1:
-        Serial.printf("UT: %ld  UP: %ld  T: %.1f°C  P: %ld Pa\n",
+        serialPrintf(Serial, "UT: %ld  UP: %ld  T: %.1f°C  P: %ld Pa\n",
                       (long)UT, (long)UP, T, (long)P);
         break;
 
       case 2:
-        Serial.printf("T: %.1f °C  |  P: %.2f hPa (%ld Pa)\n",
+        serialPrintf(Serial, "T: %.1f °C  |  P: %.2f hPa (%ld Pa)\n",
                       T, P_hPa, (long)P);
         break;
 
       case 3:
-        Serial.printf("Alt: %.1f m (%.0f ft)  P: %.2f hPa  T: %.1f°C  QNH: %.1f\n",
+        serialPrintf(Serial, "Alt: %.1f m (%.0f ft)  P: %.2f hPa  T: %.1f°C  QNH: %.1f\n",
                       h, h_ft, P_hPa, T, SEA_LEVEL_PA / 100.0f);
         break;
 
       case 4:  // Monitor CSV para altimeter_gui.py y la toolkit de análisis
-        Serial.printf("%lu,%.1f,%.2f,%.1f\n",
+        serialPrintf(Serial, "%lu,%.1f,%.2f,%.1f\n",
                       (unsigned long)(millis() - csvStart), T, P_hPa, h);
         break;
 
       case 7: {  // Filtro digital en vivo (media móvil de 8)
         float filt = altFilter.add(h);
-        Serial.printf("%lu,%.3f,%.3f\n",
+        serialPrintf(Serial, "%lu,%.3f,%.3f\n",
                       (unsigned long)(millis() - csvStart), h, filt);
         break;
       }

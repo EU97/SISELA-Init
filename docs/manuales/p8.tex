@@ -1,0 +1,748 @@
+\documentclass[11pt]{article}
+\input{preamble}
+\renewcommand{\practnum}{8}
+\renewcommand{\practtitle}{Integración de Sistemas: Adquisición, ARINC 429 y Actuación\\
+Análisis de Señales y Módulo Opcional de Dron — Énfasis Aeronáutico}
+
+\begin{document}
+\portada
+
+\begin{resumen}
+Los sistemas aeronáuticos modernos operan bajo una premisa fundamental: múltiples
+subsistemas independientes deben intercambiar datos de manera confiable, determinista y
+verificable. Esta práctica integra los conocimientos de las Prácticas 1--7 para construir
+un sistema completo de adquisición, codificación ARINC 429 y actuación. El manual
+conserva las \textbf{cuatro variantes} originales (velocidad, temperatura, altitud,
+superficie de vuelo FBW) como marco teórico de diseño, y documenta la
+\textbf{implementación de referencia del repositorio}: un panel integrado de
+instrumentos (sensores + servos + motor + tren de aterrizaje) con nueve modos, que
+incorpora además \textbf{análisis de señales} (latencia de la cadena de control,
+muestreo multicanal) y un \textbf{módulo opcional} para construir un cuadricóptero con
+motores brushless 2212.
+\end{resumen}
+
+\tableofcontents
+\newpage
+
+% ============================================================================
+\section{Introducción}
+
+Los sistemas aeronáuticos modernos operan bajo una premisa fundamental: múltiples
+subsistemas independientes deben intercambiar datos de manera confiable, determinista y
+verificable. Desde la lectura de un sensor de temperatura en la bahía de equipos hasta el
+posicionamiento de una aguja indicadora en cabina, cada dato atraviesa un proceso riguroso
+de adquisición, codificación, transmisión, validación y actuación.
+
+El estándar ARINC 429 (\emph{Mark 33 Digital Information Transfer System}) define el
+protocolo de comunicación de datos más extendido en la aviación comercial. Cada palabra
+de 32 bits transporta una variable identificada por su \emph{Label}, con campos de estado
+(SSM), datos escalados (\emph{Data Field}) y un bit de paridad impar que garantiza la
+integridad de la trama. El bus opera de forma unidireccional: un transmisor (\emph{source})
+envía a uno o más receptores (\emph{sinks}), lo que simplifica la arquitectura y elimina
+colisiones.
+
+Esta práctica integra los conocimientos de las Prácticas 1--7 para construir un sistema
+completo de adquisición y presentación de datos aeronáuticos. El planteamiento original
+propone que cada equipo seleccione una de \textbf{cuatro variantes} y desarrolle dos
+fases: (1) \textbf{Fase de Adquisición} (Nodo Sensor) — un MCU lee un sensor físico,
+convierte la señal eléctrica a un valor físico y lo codifica en una palabra ARINC 429 de
+32 bits; (2) \textbf{Fase de Salida} (Nodo Indicador) — un segundo MCU (o el mismo MCU en
+configuración de lazo) recibe la palabra ARINC 429, la decodifica, valida su integridad y
+comanda un actuador para presentar la información.
+
+\begin{nota}[Implementación de referencia del repositorio]
+El repositorio SISELA-Init implementa P8 como un \textbf{panel integrado} (un solo
+programa con 9 modos: instrumentos, control manual, potencia, tren, piloto automático,
+diagnóstico, configuración, dron opcional y análisis de señales) en lugar de 4 proyectos
+de variante independientes. Los conceptos ARINC 429 de esta sección (BNR, SSM, paridad)
+son directamente transferibles: cada equipo puede optar por (a) seguir el panel integrado
+del repositorio, añadiendo la codificación/decodificación ARINC 429 sobre sus funciones
+de \code{lib/sensors.py} y \code{lib/flight\_controls.py} existentes, o (b) implementar
+una de las 4 variantes originales como proyecto independiente siguiendo la \S7 de este
+manual. Ambos caminos cubren los mismos objetivos de aprendizaje.
+\end{nota}
+
+% ============================================================================
+\section{Objetivos de Aprendizaje}
+\begin{enumerate}
+  \item Diseñar un sistema integrado que combine adquisición de datos, codificación
+        digital y actuación coordinada.
+  \item Implementar la estructura de la palabra ARINC 429 de 32 bits (Label, SDI, Data,
+        SSM, Parity) en software embebido.
+  \item Codificar valores físicos en formato BNR (\emph{Binary Number Representation})
+        con escalado configurable.
+  \item Calcular y verificar el bit de paridad impar para garantizar la integridad de la
+        trama.
+  \item Utilizar la Matriz de Estado del Signo (SSM) para reportar el estado del dato.
+  \item Transmitir y recibir palabras ARINC 429 entre nodos usando UART como medio físico
+        simplificado.
+  \item Decodificar la palabra recibida y convertir el dato BNR de vuelta a unidades
+        físicas.
+  \item Comandar actuadores (\emph{stepper}, servo, LEDs, \emph{buzzer}) de forma
+        proporcional al dato decodificado.
+  \item \textbf{Medir la latencia de la cadena sensor$\to$actuador} y el comportamiento
+        del sistema al muestrear varios canales analógicos simultáneamente.
+  \item \textbf{(Opcional) Integrar motores brushless 2212} mediante ESC, con una
+        máquina de armado \emph{fail-safe} y un mezclador de cuadricóptero en X, como
+        base de un proyecto de extensión hacia un dron real.
+  \item Documentar el sistema completo bajo el formato de reporte AIAA.
+  \item Relacionar la práctica con sistemas reales de aviónica: FMS, EICAS, EFIS y sus
+        interfaces de bus.
+\end{enumerate}
+
+% ============================================================================
+\section{Fundamentos Teóricos}
+
+\subsection{Protocolo ARINC 429}
+ARINC 429 es un bus de datos serial unidireccional utilizado en la mayoría de las
+aeronaves comerciales (Boeing 737/747/757/767/777, Airbus A300/A310/A320, entre otras).
+Sus características principales son: bus unidireccional con un único transmisor y hasta
+20 receptores, velocidad de 12.5\,kbit/s (baja) o 100\,kbit/s (alta), medio físico de par
+trenzado blindado con señalización diferencial ($\pm\SI{10}{\volt}$ en sistemas reales),
+y palabras de 32 bits transmitidas LSB primero.
+
+\subsection{Estructura de la palabra ARINC 429 (32 bits)}
+\begin{table}[H]\centering
+\caption{Campos de la palabra ARINC 429.}
+\begin{tabular}{lll}
+\toprule
+Campo & Bits & Descripción \\
+\midrule
+Label & 1--8 & Identificador de la variable (octal, transmitido en orden invertido) \\
+SDI & 9--10 & \emph{Source/Destination Identifier} \\
+Data Field & 11--29 & Dato codificado en BNR o BCD (19 bits) \\
+SSM & 30--31 & \emph{Sign/Status Matrix} (estado del dato) \\
+Parity & 32 & Paridad impar sobre los 32 bits \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Codificación BNR}
+El formato BNR codifica valores numéricos como una fracción del rango máximo:
+\begin{equation}
+  \text{Valor} = \frac{\text{Data Field}}{2^{18}}\times\text{Escala Máxima}.
+\end{equation}
+Para codificar un valor positivo:
+\begin{equation}
+  \text{Data Field} = \text{round}\!\left(\frac{\text{Valor}}{\text{Escala Máxima}}\times(2^{18}-1)\right).
+\end{equation}
+La resolución resultante es
+\begin{equation}
+  \text{Resolución} = \frac{\text{Escala Máxima}}{2^{18}}\approx\frac{\text{Escala Máxima}}{262144}.
+\end{equation}
+
+\subsection{Matriz SSM (Sign/Status Matrix)}
+\begin{table}[H]\centering
+\caption{Codificación de la matriz SSM.}
+\begin{tabular}{lll}
+\toprule
+Bits 31--30 & Estado & Significado \\
+\midrule
+00 & \emph{Failure Warning} & El sensor reporta una falla \\
+01 & \emph{No Computed Data} & Dato no disponible o en inicialización \\
+10 & \emph{Functional Test} & Dato de prueba, no operacional \\
+11 & \emph{Normal Operation} & Dato válido y operacional \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Labels utilizados en esta práctica}
+\begin{table}[H]\centering
+\caption{Labels ARINC 429 asignados a cada variante.}
+\begin{tabular}{lllll}
+\toprule
+Label (Octal) & Variable & Escala & Unidades & Variante \\
+\midrule
+206 & \emph{Airspeed} & 0--512 & nudos (kt) & V1 \\
+212 & \emph{Temperature} & 0--512 & \si{\celsius} & V2 \\
+203 & \emph{Altitude} & 0--131072 & pies (ft) & V3 \\
+214 & \emph{Surface Position} & $\pm 180$ & grados ($\si{\degree}$) & V4 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Simplificaciones de laboratorio}
+\begin{table}[H]\centering
+\caption{Simplificaciones del estándar ARINC 429 para el entorno de laboratorio.}
+\begin{tabular}{lll}
+\toprule
+Aspecto & ARINC 429 Real & Implementación de Lab \\
+\midrule
+Medio físico & Par trenzado, $\pm\SI{10}{\volt}$ diferencial & UART 3.3\,V TTL (TX/RX) \\
+Velocidad & 12.5 o 100\,kbit/s & 115200 baud (UART) \\
+Formato & \emph{Bitstream} serial 32 bits & Cadena hexadecimal ASCII \\
+Receptores & Hasta 20 en paralelo & 1 receptor (punto a punto) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Revisión de conceptos de prácticas anteriores}
+\begin{table}[H]\centering
+\caption{Relación de conceptos previos con las variantes de P8.}
+\begin{tabular}{lll}
+\toprule
+Práctica & Concepto & Aplicación en P8 \\
+\midrule
+P1 & GPIO & Indicadores visuales de estado (V2) \\
+P2 & ADC/Posición & Sensor de velocidad/altitud/posición (V1, V3, V4) \\
+P3 & Temperatura & Sensor de temperatura (V2) \\
+P4 & Presión & Fundamento teórico de altimetría (V3) \\
+P5 & Servomotores & Indicador de altitud y superficie (V3, V4) \\
+P6 & Transistores & Buzzer de alerta (V2), motor (V4) \\
+P7 & Motores a pasos & Indicador de aguja mecánica (V1) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================================================
+\section{Consideraciones de Seguridad y Buenas Prácticas}
+\begin{enumerate}
+  \item \textbf{GND común}: ambos MCUs y todas las fuentes de alimentación deben
+        compartir la misma referencia de tierra. Sin GND común, la comunicación UART no
+        funcionará.
+  \item \textbf{Alimentación separada para actuadores}: los servomotores, motores DC y
+        motores a pasos deben alimentarse desde fuentes externas (5\,V para servos,
+        12\,V para motores DC). No alimentar actuadores desde el pin de 3.3\,V del MCU.
+  \item \textbf{Diodos \emph{flyback}}: obligatorios en cargas inductivas (\emph{buzzer},
+        motor DC, bobinas del \emph{stepper}). El ULN2003 tiene diodos integrados en el
+        pin COM.
+  \item \textbf{Protección de entradas ADC}: no aplicar voltajes superiores a 3.3\,V en
+        los pines ADC.
+  \item \textbf{Fail-safe}: cuando el nodo indicador detecte una palabra con paridad
+        inválida o SSM $\ne$ Normal, debe llevar los actuadores a una posición segura.
+  \item \textbf{Secuencia de encendido}: encender primero el nodo indicador (que ejecuta
+        \emph{homing} si aplica), luego el nodo sensor.
+  \item \textbf{Módulo de dron (\S9)}: retirar siempre las hélices para pruebas de banco;
+        alimentar los ESC desde una LiPo dedicada, nunca desde el riel del MCU; tener
+        siempre accesible la parada de emergencia. Ver \S9.4 para el procedimiento
+        completo.
+\end{enumerate}
+
+% ============================================================================
+\section{Equipo y Materiales}
+\subsection{Equipo base (todas las variantes)}
+\begin{itemize}
+  \item 2$\times$ Microcontroladores (ESP32 o RP2040) — uno por nodo, o 1$\times$ si se
+        usa Arquitectura B (lazo interno).
+  \item Cable USB para programación.
+  \item Protoboard grande y cables \emph{jumper}.
+  \item Multímetro digital (DMM).
+  \item Osciloscopio (opcional, para verificar señales).
+  \item Laptop con IDE (Thonny / VS Code + Pymakr).
+\end{itemize}
+
+\subsection{Componentes por variante}
+\begin{table}[H]\centering
+\caption{Componentes requeridos por cada variante de proyecto.}
+\begin{tabular}{lcccc}
+\toprule
+Componente & V1 & V2 & V3 & V4 \\
+\midrule
+Potenciómetro \SI{10}{\kilo\ohm} & Sí & --- & Sí & Sí \\
+Termistor NTC \SI{10}{\kilo\ohm} & --- & Sí & --- & --- \\
+R \SI{10}{\kilo\ohm} (divisor) & --- & Sí & --- & --- \\
+Motor 28BYJ-48 + ULN2003 & Sí & --- & --- & --- \\
+Servomotor SG90 & --- & --- & Sí & Sí \\
+LEDs (verde, amarillo, rojo) + R \SI{330}{\ohm} & --- & Sí & --- & --- \\
+Buzzer + 2N2222A + R base \SI{1.2}{\kilo\ohm} & --- & Sí & --- & --- \\
+Diodo 1N4007 (\emph{flyback}) & --- & Sí & --- & Sí \\
+MOSFET IRF540N + Motor DC & --- & --- & --- & Sí \\
+Fin de carrera (\emph{endstop}) & Sí & --- & --- & --- \\
+Fuente externa 5--12\,V & Sí & --- & --- & Sí \\
+\bottomrule
+\end{tabular}
+\end{table}
+\textbf{Módulo opcional de dron} (\S9): 4$\times$ motor brushless 2212 (900--1400\,KV),
+4$\times$ ESC 20--30\,A, 4$\times$ hélice (sin montar en banco), batería LiPo 3S
+$\ge$4000\,mAh, cargador balanceador, \emph{frame} clase 250--450, PDB, conectores XT60 y
+\emph{bullet} 3.5\,mm — ver \code{docs/dron\_2212.md}.
+
+% ============================================================================
+\section{Etapa de Diseño}
+
+\subsection{Análisis de carga eléctrica}
+Antes de la integración, se debe calcular la potencia total requerida por el sistema:
+\begin{equation}
+  P_\text{total} = \sum V_{cc}\cdot I_\text{quiescent} + \sum V_\text{ext}\cdot I_\text{actuador}.
+\end{equation}
+\begin{table}[H]\centering
+\caption{Presupuesto de potencia del sistema integrado.}
+\begin{tabular}{lccc}
+\toprule
+Subsistema & Voltaje (V) & Corriente Pico (mA) & Disipación (mW) \\
+\midrule
+Nodo Sensor (MCU + ADC) & 3.3 & 50 & 165 \\
+Nodo Indicador (MCU) & 3.3 & 50 & 165 \\
+Servomotor SG90 & 5.0 & 600 & 3000 \\
+Motor a pasos 28BYJ-48 & 5.0 & 250 & 1250 \\
+Motor DC (vía MOSFET) & 12.0 & 500 & 6000 \\
+Buzzer + LEDs & 3.3 & 80 & 264 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Codificación BNR — ejemplo de cálculo}
+Para la Variante 1 (\emph{Airspeed}), con un valor de 150\,kt y escala máxima de
+512\,kt:
+\begin{equation}
+  \text{Data Field} = \text{round}\!\left(\frac{150}{512}\times(2^{19}-1)\right) =
+  \text{round}(153598.8) = 153599.
+\end{equation}
+En binario: $0010\_0101\_0111\_1111\_111_2$.
+
+\begin{nota}[BNR de 19 bits vs.\ 18 bits con signo]
+Para variables exclusivamente positivas (V1, V2, V3), se utilizan los 19 bits completos
+del \emph{Data Field} (bits 11--29). Para la Variante 4 (superficie de control con
+valores con signo), el bit 29 actúa como bit de signo y se dispone de 18 bits de
+magnitud.
+\end{nota}
+
+% ============================================================================
+\section{Procedimiento Experimental}
+
+\subsection{Arquitectura del sistema}
+\subsubsection{Arquitectura A: dos MCUs (distribuida — recomendada)}
+\begin{figure}[H]\centering
+\begin{tikzpicture}[node distance=3.5cm]
+  \node[term] (a) {Nodo Sensor (MCU A)};
+  \node[term, right=3.6cm of a] (b) {Nodo Indicador (MCU B)};
+  \draw[flow] (a.east) -- node[above,font=\scriptsize]{UART TX $\to$ RX} (b.west);
+  \draw[flow, dashed] ([yshift=-4pt]b.west) -- node[below,font=\scriptsize]{GND común} ([yshift=-4pt]a.east);
+\end{tikzpicture}
+\caption{Arquitectura A: sistema distribuido con dos microcontroladores.}
+\end{figure}
+Configuración UART: 115200\,baud, 8 bits de datos, sin paridad UART, 1 \emph{stop} bit
+(8N1). Conexión cruzada: TX del nodo sensor al RX del nodo indicador, GND común.
+
+\subsubsection{Arquitectura B: un solo MCU (lazo interno)}
+Para equipos con un solo MCU disponible, el nodo sensor y el nodo indicador comparten el
+mismo microcontrolador. La palabra ARINC 429 se codifica en memoria, se almacena en una
+variable de 32 bits y se decodifica inmediatamente. Esta configuración permite validar
+la codificación/decodificación sin comunicación serial — es también la arquitectura
+recomendada para el \textbf{módulo de análisis de señales} (\S8) y el módulo de
+\textbf{dron} (\S9), que corren en un único MCU.
+
+\subsection{Biblioteca ARINC 429 — funciones comunes}
+Funciones de referencia (\code{arinc429\_encode}, \code{arinc429\_decode},
+\code{arinc429\_send\_uart}, \code{arinc429\_receive\_uart}): calculan el \emph{Data
+Field} BNR, empaquetan Label/SDI/SSM, calculan la paridad impar, y transmiten/reciben la
+palabra como cadena hexadecimal de 8 caracteres por UART. Ver Apéndice~A.
+
+\subsection{Variante 1: indicador de velocidad aerodinámica (\emph{Airspeed Indicator})}
+\textbf{Concepto aeronáutico}: el indicador de velocidad aerodinámica (ASI) es un
+instrumento primario de vuelo. El \emph{Air Data Computer} (ADC) codifica la velocidad en
+ARINC 429 Label 206 y la envía al \emph{display} de cabina.
+
+\textbf{Adquisición}: potenciómetro de \SI{10}{\kilo\ohm} conectado al ADC, simulando un
+transductor de presión dinámica. Mapeo lineal: 0\,V $=$ 0\,kt, 3.3\,V $=$ 300\,kt.
+Codificación: Label 206 (octal), escala máxima 512\,kt, BNR positivo, SSM$=11$ (\emph{Normal
+Operation}).
+
+\textbf{Salida}: motor a pasos 28BYJ-48 con \emph{driver} ULN2003, posicionando una aguja
+proporcional a la velocidad:
+\begin{equation}
+  N_\text{pasos} = \frac{\text{Velocidad (kt)}}{300}\times\frac{270}{360}\times 4096 =
+  \frac{\text{Velocidad (kt)}}{300}\times 3072,
+\end{equation}
+donde $270\si{\degree}$ es el barrido del dial y 4096 el número de pasos por revolución
+en \emph{half-step}.
+
+\begin{table}[H]\centering
+\caption{Tabla de verificación — Variante 1 (Airspeed Indicator).}
+\begin{tabular}{ccccc}
+\toprule
+Pot (\%) & Velocidad (kt) & ARINC (hex) & Pasos & Ángulo \\
+\midrule
+0 & 0 & & 0 & $0\si{\degree}$ \\
+25 & 75 & & 768 & $67.5\si{\degree}$ \\
+50 & 150 & & 1536 & $135\si{\degree}$ \\
+75 & 225 & & 2304 & $202.5\si{\degree}$ \\
+100 & 300 & & 3072 & $270\si{\degree}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Variante 2: sistema de alerta de temperatura (\emph{Temperature Alert System})}
+\textbf{Concepto aeronáutico}: los sistemas EICAS monitorean continuamente las
+temperaturas críticas del motor y generan alertas escalonadas cuando los valores exceden
+los límites operativos. El \emph{Air Data Computer} codifica la temperatura en ARINC 429
+Label 212.
+
+\textbf{Adquisición}: termistor NTC \SI{10}{\kilo\ohm} ($\beta\approx3950$\,K) en divisor
+de voltaje con resistencia fija de \SI{10}{\kilo\ohm}. Conversión mediante la ecuación
+Beta: $1/T=1/T_0+(1/\beta)\ln(R_\text{NTC}/R_0)$, con $T_0=298.15$\,K (25\si{\celsius}),
+$R_0=\SI{10000}{\ohm}$.
+
+\textbf{Salida}: LED verde ($T<$ umbral amarillo), LED amarillo (advertencia), LED rojo
++ \emph{buzzer} (peligro). Umbrales sugeridos: $T_\text{amarillo}=35\si{\celsius}$,
+$T_\text{rojo}=45\si{\celsius}$. El \emph{buzzer} se activa mediante un transistor
+2N2222A en configuración \emph{low-side} con diodo \emph{flyback} 1N4007.
+
+\begin{table}[H]\centering
+\caption{Tabla de verificación — Variante 2 (Temperature Alert).}
+\begin{tabular}{lccccc}
+\toprule
+Temperatura & SSM & Verde & Amarillo & Rojo & Buzzer \\
+\midrule
+$25\si{\celsius}$ & Normal & ON & OFF & OFF & OFF \\
+$38\si{\celsius}$ & Normal & OFF & ON & OFF & OFF \\
+$50\si{\celsius}$ & Normal & OFF & OFF & ON & ON \\
+Desconectado & Failure & OFF & ON & ON & OFF \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Variante 3: indicador de altitud barométrica (\emph{Altitude Indicator})}
+\textbf{Concepto aeronáutico}: el altímetro barométrico determina la altura de la
+aeronave midiendo la presión atmosférica. El \emph{Air Data Computer} calcula la altitud
+y la codifica en ARINC 429 Label 203. Un potenciómetro simula la salida del transductor
+de presión. Mapeo: 0--3.3\,V $\to$ 0--10000\,ft.
+
+\textbf{Salida}: servomotor SG90 cuya posición es proporcional a la altitud decodificada:
+\begin{equation}
+  \theta_\text{servo} = \frac{\text{Altitud (ft)}}{\text{Rango máximo (ft)}}\times 180\si{\degree}.
+\end{equation}
+
+\begin{table}[H]\centering
+\caption{Tabla de verificación — Variante 3 (Altitude Indicator).}
+\begin{tabular}{cccc}
+\toprule
+Pot (\%) & Altitud (ft) & Ángulo Servo & Pulso PWM ($\mu$s) \\
+\midrule
+0 & 0 & $0\si{\degree}$ & $\sim 500$ \\
+25 & 2500 & $45\si{\degree}$ & $\sim 1056$ \\
+50 & 5000 & $90\si{\degree}$ & $\sim 1500$ \\
+75 & 7500 & $135\si{\degree}$ & $\sim 1944$ \\
+100 & 10000 & $180\si{\degree}$ & $\sim 2500$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Variante 4: control de superficie de vuelo (Fly-By-Wire)}
+\textbf{Concepto aeronáutico}: en sistemas \emph{Fly-By-Wire} (FBW), la palanca de mando
+genera señales eléctricas que se codifican digitalmente y se transmiten por el bus de
+datos al actuador de la superficie de control. No existe conexión mecánica directa entre
+el piloto y la superficie.
+
+\textbf{Adquisición}: potenciómetro centrado. ADC centrado: 0\,V$=-30\si{\degree}$,
+1.65\,V$=0\si{\degree}$ (\emph{neutral}), 3.3\,V$=+30\si{\degree}$. Para valores con
+signo, el bit 29 del \emph{Data Field} actúa como signo:
+\begin{equation}
+  \text{Magnitud BNR} = \text{round}\!\left(\frac{|\text{Deflexión}|}{180}\times(2^{18}-1)\right).
+\end{equation}
+
+\textbf{Salida}: servomotor SG90 representando la superficie de elevador. \emph{Neutral}
+$=90\si{\degree}$, deflexión $+30\si{\degree}=120\si{\degree}$, deflexión
+$-30\si{\degree}=60\si{\degree}$. Actuador secundario (opcional): motor DC controlado por
+MOSFET, representando empuje proporcional a deflexión positiva.
+
+\begin{table}[H]\centering
+\caption{Tabla de verificación — Variante 4 (Fly-By-Wire).}
+\begin{tabular}{ccccc}
+\toprule
+Pot (\%) & Deflexión & Servo & Motor \\
+\midrule
+0 & $-30\si{\degree}$ & $60\si{\degree}$ & OFF \\
+25 & $-15\si{\degree}$ & $75\si{\degree}$ & OFF \\
+50 & $0\si{\degree}$ (\emph{neutral}) & $90\si{\degree}$ & OFF \\
+75 & $+15\si{\degree}$ & $105\si{\degree}$ & \(\sim\)50\,\% \\
+100 & $+30\si{\degree}$ & $120\si{\degree}$ & 100\,\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Caso de estudio: inyección de fallos y validación de integridad}
+Independientemente de la variante seleccionada, cada equipo debe realizar las siguientes
+pruebas de robustez:
+\begin{table}[H]\centering
+\caption{Matriz de pruebas de inyección de fallos.}
+\begin{tabular}{llll}
+\toprule
+Condición de Fallo & Procedimiento & Resultado Esperado & Pass \\
+\midrule
+Paridad corrupta & Invertir bit 32 en palabra & Rechazo, \emph{fail-safe} & \\
+SSM = Failure (00) & Forzar ssm=0x00 en sensor & Actuador a posición segura & \\
+SSM = NCD (01) & Forzar ssm=0x01 en sensor & Actuador congelado o seguro & \\
+Label incorrecto & Enviar Label 0o377 & Ignorar trama & \\
+Desconexión UART & Retirar cable TX & \emph{Fail-safe} tras \emph{timeout} & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{nota}[Contexto aeronáutico: DO-178C]
+En el desarrollo de software aeronáutico, la norma DO-178C (\emph{Software
+Considerations in Airborne Systems and Equipment Certification}) establece que los
+sistemas de nivel DAL A deben demostrar cobertura completa de código y robustez ante
+condiciones anormales. La inyección de fallos es una técnica estándar de verificación.
+\end{nota}
+
+% ============================================================================
+\section{Análisis de Señales}
+\label{sec:senales}
+
+Además de la codificación ARINC 429, la implementación de referencia del repositorio
+añade un modo dedicado (\textbf{Modo 9}) para analizar la cadena de señal completa como
+un sistema de adquisición--procesamiento--actuación, y aplica los mismos paradigmas de
+las Prácticas 4--7 (muestreo, jitter, respuesta dinámica) al sistema integrado.
+
+\subsection{Latencia de la cadena sensor $\to$ actuador}
+El Modo 9$\to$1 mide, con \code{ticks\_us}, el tiempo de \emph{leer ADC (altitud)
+$\to$ calcular $\to$ mover servo (alerón)} en 200 ciclos y reporta media, $\sigma$ y la
+tasa de actualización efectiva. Compare esta latencia con los requisitos típicos de un
+sistema FBW primario ($<\SI{50}{\milli\second}$, \S10.2 del registro de datos original) y
+discuta si el sistema es apto para control primario de vuelo o solo para monitoreo de
+sistemas secundarios.
+
+\subsection{Muestreo multicanal y anti-aliasing}
+El Modo 9$\to$2 muestrea los 4 sensores ADC (altitud, velocidad, actitud, luz) a una
+$F_s$ común y emite un CSV multicanal. Preguntas a resolver: ¿los 4 canales se leen
+realmente al mismo instante o hay un \emph{skew} por leerlos secuencialmente? ¿Qué
+$F_s$ es adecuada dado el ancho de banda físico de cada variable simulada? Con el
+generador de funciones inyectando un seno conocido en un canal (como en P5, Modo 6), se
+puede verificar el aliasing también aquí.
+
+\subsection{Jitter del PWM de los ESC (módulo de dron)}
+Si el módulo opcional de dron (\S\ref{sec:dron}, más abajo) está habilitado, el Modo
+8$\to$4 mide el \emph{jitter} de la señal PWM que llega a un ESC, con el mismo método que
+el Modo 5 de la Práctica 5 (osciloscopio, \emph{Pulse Width $\to$ StdDev}).
+
+% ============================================================================
+\section{Módulo Opcional: Dron con Motores 2212}
+\label{sec:dron}
+
+La implementación de referencia incluye un \textbf{Modo 8}, deshabilitado por defecto
+(\code{ENABLE\_DRONE = False}), que añade la capa de actuación de bajo nivel para
+construir un cuadricóptero real con 4 motores brushless \textbf{2212} (900--1400\,KV) y
+sus ESC. Este módulo se documenta en detalle en \code{docs/dron\_2212.md}; aquí se resume
+lo esencial.
+
+\subsection{Driver de ESC con armado fail-safe}
+Un ESC recibe la misma señal que un servo (PWM 50\,Hz, 1000--2000\,\si{\micro\second}),
+pero la interpreta como \emph{throttle} (0--100\,\%) y exige una secuencia de
+\textbf{armado}: throttle mínimo sostenido $\sim$2\,s antes de aceptar comandos. El
+\emph{driver} del repositorio (\code{lib/esc.py} / \code{common/esc.h}) implementa una
+máquina de estados que \textbf{niega el throttle} si no se armó antes — un fallo seguro
+por diseño.
+
+\subsection{Mezclador de cuadricóptero en X}
+El módulo \code{lib/quad\_mixer.py} / \code{common/quad\_mixer.h} traduce comandos de
+throttle/roll/pitch/yaw a 4 valores de throttle por motor:
+\begin{align}
+  M_1 &= \text{throttle}+\text{roll}-\text{pitch}+\text{yaw} \quad (\text{front-left, CW}), \\
+  M_2 &= \text{throttle}-\text{roll}-\text{pitch}-\text{yaw} \quad (\text{front-right, CCW}), \\
+  M_3 &= \text{throttle}+\text{roll}+\text{pitch}-\text{yaw} \quad (\text{rear-left, CCW}), \\
+  M_4 &= \text{throttle}-\text{roll}+\text{pitch}+\text{yaw} \quad (\text{rear-right, CW}).
+\end{align}
+
+\begin{nota}[Lazo abierto — ruta de extensión]
+Este mezclador es de \textbf{lazo abierto}: no hay IMU ni PID, así que \textbf{no
+estabiliza un vuelo real} por sí solo. Es la capa de actuación (throttle $\to$ señal ESC)
+sobre la que se puede construir un controlador de vuelo completo añadiendo un IMU
+(p.\ ej.\ MPU6050), un filtro de fusión y un lazo PID por eje — ver
+\code{docs/dron\_2212.md}, \S7, para la ruta de extensión detallada. Esto queda fuera del
+alcance evaluado de esta práctica.
+\end{nota}
+
+\subsection{Submenú del Modo 8}
+\begin{enumerate}
+  \item \textbf{Armar los 4 ESC} — requiere confirmación explícita de que las hélices
+        están retiradas.
+  \item \textbf{Test individual de motor} — throttle manual bajo (\(\le\)20\,\%
+        recomendado sin hélice).
+  \item \textbf{Mezclador X} — throttle/roll/pitch/yaw por teclado, con parada de
+        emergencia en la barra espaciadora.
+  \item \textbf{Jitter del PWM del ESC} — osciloscopio, igual método que P5 Modo 5.
+  \item \textbf{Parada de emergencia} — throttle 0 en los 4 motores y desarmado
+        inmediato.
+\end{enumerate}
+
+\subsection{Seguridad (resumen — ver docs/dron\_2212.md)}
+Retirar siempre las hélices para pruebas de banco. Alimentar los ESC desde una LiPo 3S
+dedicada (nunca el riel del MCU). Mantener la parada de emergencia siempre accesible.
+Verificar el sentido de giro de cada motor antes de considerar el montaje de hélices
+(fuera del alcance de laboratorio de esta práctica).
+
+% ============================================================================
+\section{Alternativa de Trabajo en Casa (Multímetro + Simulación)}
+\label{sec:casa}
+
+\paragraph{Con multímetro (en casa).} Verificar el voltaje de la LiPo (11.1--12.6\,V
+para 3S) antes de conectar el módulo de dron. Verificar continuidad de los conectores
+XT60/\emph{bullet} y que el GND es común entre MCU y ESC. Para las 4 variantes
+ARINC 429, medir el voltaje del sensor (potenciómetro/NTC) y calcular a mano el
+\emph{Data Field} esperado, comparándolo con el valor hexadecimal que imprime el
+firmware.
+
+\paragraph{Con simulación.} El Modo 9 (latencia y muestreo multicanal) y toda la
+codificación/decodificación BNR (Arquitectura B, un solo MCU) son \textbf{100\,\%
+software}: no requieren osciloscopio, generador ni un segundo MCU, y pueden ejecutarse
+íntegramente en casa. Para quien no tenga 2 MCU disponibles, la Arquitectura B es la
+recomendada. La lógica de codificación/decodificación (Apéndice~A) también puede
+replicarse en un intérprete de Python en la PC para verificarla sin ningún hardware.
+
+\paragraph{Requiere laboratorio presencial.} El hardware de cada variante (motor a
+pasos, servo, \emph{buzzer}, MOSFET+motor DC) y el módulo opcional de dron requieren los
+componentes físicos; el jitter del PWM del ESC (Modo 8$\to$4) requiere además
+osciloscopio.
+
+\begin{table}[H]\centering
+\caption{Alternativas de trabajo en casa.}
+\begin{tabular}{lccc}
+\toprule
+Actividad & Multímetro & Simulación & Requiere laboratorio \\
+\midrule
+Codificación/decodificación BNR & --- & Sí (100\,\%) & No \\
+Variantes 1--4 (hardware real) & Sí (sensor) & Parcial & Sí \\
+Inyección de fallos (paridad/SSM) & --- & Sí (lógica) & No \\
+Modo 9 (latencia, muestreo) & --- & --- & No (usa el propio MCU) \\
+Modo 8 (dron, armar/mezclador) & Sí (LiPo, continuidad) & --- & Sí (motores 2212) \\
+Modo 8 (jitter ESC) & No & No (idealizada) & \textbf{Sí, osciloscopio} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================================================
+\section{Registro de Datos y Comparativa}
+
+\subsection{Tabla de validación integral}
+\begin{table}[H]\centering
+\caption{Registro de validación integral — completar durante el laboratorio.}
+\begin{tabular}{lccccc}
+\toprule
+Entrada & Calculado & ARINC (hex) & Decodificado & Error (\%) & SSM \\
+\midrule
+ & & & & & \\
+ & & & & & \\
+ & & & & & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Análisis de latencia}
+Registre el tiempo de respuesta del sistema desde el cambio en el sensor hasta la
+respuesta visible del actuador (o use directamente el Modo 9$\to$1). Compare con los
+requisitos típicos de un sistema FBW primario ($<\SI{50}{\milli\second}$).
+
+% ============================================================================
+\section{Análisis de Resultados}
+\begin{enumerate}
+  \item \textbf{Validación de codificación}: calcule el porcentaje de error entre el
+        valor físico original y el valor decodificado. Relacione el error con la
+        resolución BNR de la ecuación 3.
+  \item \textbf{Efectividad de la detección de fallos}: discuta cómo la paridad y el
+        SSM evitaron movimientos no comandados durante las pruebas de inyección de
+        fallos.
+  \item \textbf{Análisis de latencia}: grafique el tiempo de respuesta (Modo 9$\to$1) y
+        determine si es adecuado para control primario de vuelo o solo para monitoreo de
+        sistemas secundarios.
+  \item \textbf{Comparativa con ARINC 429 real}: calcule la tasa de transmisión efectiva
+        de su sistema en palabras/segundo y compárela con la tasa típica de ARINC 429 a
+        alta velocidad ($\sim$381\,palabras/s).
+  \item \textbf{Tolerancia de componentes}: evalúe cómo la tolerancia del potenciómetro
+        (5\,\%) y la no linealidad del ADC afectan el valor BNR codificado.
+  \item \textbf{Muestreo multicanal} (Modo 9$\to$2): ¿los 4 canales presentan
+        \emph{skew} detectable? ¿La $F_s$ elegida es suficiente para la dinámica de
+        cada variable simulada?
+\end{enumerate}
+
+% ============================================================================
+\section{Preguntas de Discusión y Refuerzo}
+\begin{enumerate}
+  \item Por qué ARINC 429 utiliza paridad impar en lugar de paridad par? ¿Qué ventaja
+        ofrece para detectar errores de un solo bit?
+  \item Si el bus ARINC 429 transporta una palabra de altitud con paridad correcta pero
+        el SSM indica ``Failure Warning'', ¿debe el indicador mostrar el valor o
+        ignorarlo? Justifique considerando factores humanos.
+  \item ¿Cuál es la resolución angular lograda por el motor a pasos 28BYJ-48 en
+        \emph{half-step} para la Variante 1? ¿Es suficiente para un indicador de
+        velocidad aerodinámica real?
+  \item En la Variante 4 (Fly-By-Wire), ¿qué ocurriría si el nodo actuador pierde
+        comunicación con el nodo sensor durante 500\,ms? ¿Cuál sería la estrategia de
+        \emph{fail-safe} según DO-178C?
+  \item Compare la latencia de su sistema (Modo 9$\to$1) con los requisitos típicos de
+        un sistema FBW primario ($<\SI{50}{\milli\second}$). ¿Qué factores contribuyen a
+        la latencia?
+  \item ¿Por qué se utiliza una cadena hexadecimal ASCII sobre UART en lugar de
+        transmitir los 4 \emph{bytes} directamente?
+  \item Explique cómo la arquitectura unidireccional de ARINC 429 simplifica el diseño
+        del bus frente a protocolos bidireccionales como CAN o ARINC 664 (AFDX).
+  \item Si se quisiera añadir redundancia dual al sistema, ¿cómo modificaría la
+        arquitectura? Describa el concepto de \emph{voting} en aviónica.
+  \item ¿Qué mejoras implementaría para que su sistema cumpla con DAL A según DO-178C?
+  \item Calcule la tasa de transmisión efectiva de su sistema en palabras/segundo y
+        compárela con ARINC 429 a alta velocidad.
+  \item \textbf{(Módulo de dron)} ¿Por qué el mezclador X es de lazo abierto y qué
+        componentes (sensor + algoritmo) le faltan para estabilizar un vuelo real? ¿Qué
+        norma o buena práctica de la industria de drones establece los requisitos
+        mínimos de \emph{failsafe} de radio para un vehículo no tripulado?
+\end{enumerate}
+
+% ============================================================================
+\section{Entregables (Proyecto Final — Formato AIAA)}
+Cada equipo debe entregar:
+\begin{enumerate}
+  \item Reporte técnico (formato AIAA) que incluya: resumen ejecutivo, diagrama de
+        arquitectura del sistema, esquemático eléctrico completo, tabla de asignación
+        de pines, tabla de codificación ARINC 429, memoria de cálculo, resultados con
+        porcentaje de error, análisis de latencia, prueba de inyección de fallos, y
+        respuestas a las preguntas de discusión.
+  \item Código fuente completo y comentado (ambos nodos, o el panel integrado).
+  \item Video o evidencia fotográfica del sistema en operación, mostrando: \emph{homing}
+        del motor a pasos (si aplica), respuesta del actuador ante variaciones del
+        sensor, y respuesta ante inyección de fallo.
+  \item \textbf{(Si se habilitó el módulo de dron)} evidencia del armado seguro de los 4
+        ESC y del mezclador X operando \textbf{sin hélices}.
+\end{enumerate}
+
+% ============================================================================
+\section{Referencias}
+\begin{enumerate}
+  \item ARINC Specification 429 Part 1-18: Mark 33 Digital Information Transfer System.
+        Aeronautical Radio, Inc.
+  \item RTCA DO-178C: Software Considerations in Airborne Systems and Equipment
+        Certification. 2011.
+  \item RTCA DO-254: Design Assurance Guidance for Airborne Electronic Hardware. 2000.
+  \item Moir, I., \& Seabridge, A. (2013). \emph{Aircraft Systems: Mechanical,
+        Electrical, and Avionics Subsystems Integration}. 4th Ed., Wiley.
+  \item Spitzer, C.R. (2015). \emph{Digital Avionics Handbook}. 3rd Ed., CRC Press.
+  \item Collinson, R.P.G. (2011). \emph{Introduction to Avionics Systems}. 3rd Ed.,
+        Springer.
+  \item \emph{Datasheets} de motores 2212 (fabricante según modelo adquirido); BLHeli /
+        BLHeli\_S ESC Documentation — ver \code{docs/dron\_2212.md} para la lista
+        completa del módulo opcional.
+\end{enumerate}
+
+% ============================================================================
+\appendix
+\section{Código Fuente del Repositorio}
+\begin{table}[H]\centering
+\caption{Estructura de archivos de la Práctica 8.}
+\begin{tabular}{ll}
+\toprule
+Ruta & Descripción \\
+\midrule
+\code{MicroPython/\{ESP32,RP2040\}/P8/main.py} & Panel integrado (9 modos) \\
+\code{.../P8/lib/\{sensors,flight\_controls,propulsion,landing\_gear\}.py} & Subsistemas base \\
+\code{.../P8/lib/\{esc,quad\_mixer\}.py} & Módulo opcional de dron \\
+\code{.../P8/lib/siglab.py} & Utilidades de análisis de señales (Modo 9) \\
+\code{.../P8/docs/dron\_2212.md} & Guía completa del módulo opcional \\
+\code{.../P8/docs/analisis\_senales.md} & Guía del Modo 9 \\
+\code{C++/SISELA-CPP/src/practices/p8.cpp} & Implementación C++ (9 modos) \\
+\code{C++/.../common/\{esc,quad\_mixer,siglab\}.h} & Módulos comunes C++ \\
+\code{tools/sisela\_signal/} & Toolkit PC de análisis de señales \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Contexto Aeronáutico Complementario}
+\textbf{Sistemas reales de aviónica integrada}: el FMS (\emph{Flight Management System})
+integra datos de múltiples sensores (ADC, IRS, GPS) vía ARINC 429/629 para calcular la
+trayectoria óptima. El EICAS (\emph{Engine Indication and Crew Alerting System}) recibe
+docenas de palabras ARINC 429 de los motores y genera alertas jerarquizadas (\emph{Warning},
+\emph{Caution}, \emph{Advisory}) — el mismo patrón que la Variante 2 de esta práctica. El
+EFIS (\emph{Electronic Flight Instrument System}) reemplaza los instrumentos analógicos
+mecánicos por pantallas que decodifican ARINC 429 en tiempo real, aunque muchos aviones
+de aviación general conservan instrumentos de respaldo mecánicos (motor a pasos o
+servomotor) idénticos en principio a los de esta práctica.
+
+\end{document}

@@ -1,0 +1,797 @@
+\documentclass[11pt]{article}
+\input{preamble}
+\renewcommand{\practnum}{7}
+\renewcommand{\practtitle}{Control de Motores a Pasos\\
+Posicionamiento Angular Discreto — Énfasis Aeronáutico}
+
+\begin{document}
+\portada
+
+\begin{resumen}
+Los motores a pasos (\emph{stepper motors}) son dispositivos electromecánicos que
+convierten pulsos eléctricos en desplazamientos angulares discretos. A diferencia de los
+motores DC convencionales o los servomotores, el motor a pasos avanza una fracción de
+vuelta precisa por cada pulso recibido, permitiendo un control de posición en lazo
+abierto con alta repetibilidad. En el ámbito aeronáutico, los motores a pasos encuentran
+su nicho principal en la instrumentación analógica de cabina (\emph{glass-analog
+hybrid}): las agujas de indicadores como altímetros, velocímetros, indicadores de RPM,
+temperatura de gases de escape (EGT) y presión de combustible son accionadas por pequeños
+motores que reciben comandos de posicionamiento desde el bus de datos ARINC 429. Esta
+práctica cubre el motor unipolar 28BYJ-48 con su driver ULN2003, el motor bipolar
+NEMA 17 con el driver A4988/DRV8825, homing con fin de carrera, y posicionamiento
+absoluto vía ARINC 429 Label 204.
+\end{resumen}
+
+\tableofcontents
+\newpage
+
+% ============================================================================
+\section{Introducción}
+
+Los motores a pasos (\emph{stepper motors}) son dispositivos electromecánicos que
+convierten pulsos eléctricos en desplazamientos angulares discretos. A diferencia de los
+motores DC convencionales que giran continuamente al aplicar voltaje, o de los
+servomotores que requieren un lazo de retroalimentación, el motor a pasos avanza una
+fracción de vuelta precisa por cada pulso recibido, permitiendo un control de posición en
+lazo abierto con alta repetibilidad.
+
+En el ámbito aeronáutico, los motores a pasos encuentran su nicho principal en la
+\textbf{instrumentación analógica de cabina} (\emph{glass-analog hybrid}). Las agujas de
+indicadores como altímetros, velocímetros, indicadores de RPM, temperatura de gases de
+escape (EGT) y presión de combustible son accionadas por pequeños motores que reciben
+comandos de posicionamiento desde el bus de datos ARINC 429. El procesador del
+instrumento decodifica la palabra ARINC 429, calcula la posición angular correspondiente
+y envía los pasos necesarios al \emph{driver} para actualizar la carátula con alta
+resolución y repetibilidad.
+
+Adicionalmente, los motores a pasos se emplean en posicionamiento de antenas pequeñas,
+control de válvulas de bajo torque, equipos de prueba y calibración, y en sistemas de
+prueba de vuelo (\emph{flight test instrumentation}).
+
+En las prácticas anteriores se cubrió el control con servomotores (P5, posición por PWM)
+y la conmutación de potencia con transistores BJT (P6, diseño de interfaces
+\emph{low-side} y \emph{high-side}). Esta práctica da el siguiente paso: controlar la
+\textbf{posición angular discreta} de una carga mecánica usando secuencias de conmutación
+de bobinas, sin necesidad de retroalimentación analógica.
+
+El estudiante trabajará con el motor unipolar \textbf{28BYJ-48} y su \emph{driver}
+\textbf{ULN2003} como caso de estudio principal. Esta combinación es ideal para
+prototipos educativos por su bajo costo, alimentación a 5\,V y control directo desde
+pines GPIO. Como alternativa, se presenta el motor bipolar \textbf{NEMA 17} con el
+\emph{driver} A4988/DRV8825, comparando ambas arquitecturas.
+
+% ============================================================================
+\section{Objetivos de Aprendizaje}
+\begin{enumerate}
+  \item Identificar las diferencias constructivas y operativas entre motores a pasos
+        unipolares (28BYJ-48, 5 cables) y bipolares (NEMA 17, 4 cables), y sus
+        respectivos \emph{drivers} de potencia.
+  \item Diseñar e implementar las secuencias lógicas de conmutación \emph{full-step}
+        (4 fases) y \emph{half-step} (8 fases) en software, controlando los pines
+        IN1--IN4 del ULN2003.
+  \item Calcular la resolución angular del sistema considerando la reducción mecánica
+        interna del motor: $\text{SPR}=360\si{\degree}/\theta_\text{paso}\times
+        n_\text{reductor}$ y relacionar RPM con el intervalo de tiempo entre pasos.
+  \item Implementar un sistema de referenciación (\emph{homing}) utilizando un sensor de
+        fin de carrera para establecer la posición cero del instrumento.
+  \item Integrar la recepción de tramas ARINC 429 (Label 204) para el posicionamiento
+        absoluto de un indicador, incluyendo validación de paridad y cálculo de
+        trayectoria mínima.
+  \item Comprender el funcionamiento del ULN2003 como arreglo de pares Darlington con
+        diodos de protección internos, y su relación con la conmutación de bobinas
+        inductivas.
+  \item Comparar el control basado en secuencias (ULN2003) con el control STEP/DIR
+        (A4988), evaluando torque, resolución, complejidad y aplicabilidad aeronáutica.
+  \item Implementar un control interactivo con menú serial: \emph{jog} manual,
+        movimiento por pasos, barrido y \emph{homing}, verificando la operación con
+        osciloscopio y midiéndola con instrumentos.
+  \item Documentar el trabajo en formato AIAA: teoría, cálculos, diagramas, código
+        fuente, resultados experimentales y análisis estadístico de precisión.
+  \item Contextualizar los motores a pasos en aplicaciones aeronáuticas: instrumentación
+        de cabina, posicionamiento de antenas, control de válvulas y sistemas de
+        prueba, considerando normativas DO-178C y DO-160G.
+\end{enumerate}
+
+% ============================================================================
+\section{Fundamentos Teóricos}
+
+\subsection{Principio de funcionamiento del motor a pasos}
+Un motor a pasos es un dispositivo electromecánico en el que el rotor (generalmente de
+imán permanente o reluctancia variable) se alinea con el campo magnético generado por las
+bobinas del estátor. Al energizar las bobinas en una secuencia específica, el campo
+magnético ``rota'' discretamente y el rotor lo sigue en incrementos angulares fijos
+denominados \textbf{pasos}. Los parámetros fundamentales son:
+\begin{itemize}
+  \item \textbf{Ángulo de paso} ($\theta_\text{paso}$): incremento angular por cada paso
+        del motor. Valores comunes: $1.8\si{\degree}$ (NEMA 17), $5.625\si{\degree}$
+        (28BYJ-48 antes de reducción).
+  \item \textbf{Pasos por revolución}: $\text{SPR}=360\si{\degree}/\theta_\text{paso}$.
+        Para el eje interno del 28BYJ-48: 64 pasos.
+  \item \textbf{Torque de mantenimiento} (\emph{holding torque}): torque máximo cuando
+        las bobinas están energizadas y el rotor está detenido.
+  \item \textbf{Torque de desprendimiento} (\emph{pull-out torque}): torque máximo a una
+        velocidad dada sin perder pasos.
+\end{itemize}
+
+\begin{nota}[Lazo abierto vs lazo cerrado]
+El control en lazo abierto es viable siempre que no se exceda el torque de
+desprendimiento. Si la carga mecánica supera la capacidad del motor, se pierden pasos sin
+que el controlador lo detecte. En instrumentación aeronáutica, un procedimiento de
+\emph{homing} periódico compensa esta limitación.
+\end{nota}
+
+\subsection{Tipos de motores a pasos}
+\subsubsection{Motor unipolar (28BYJ-48)}
+Cada bobina tiene una toma central (\emph{center tap}) conectada a $V_{CC}$. La corriente
+fluye siempre en la misma dirección en cada sección de bobina, simplificando el
+\emph{driver} a transistores individuales (sin necesidad de puente H).
+\begin{itemize}
+  \item \textbf{Cables}: 5 (rojo = común $V_{CC}$; azul, rosa, amarillo, naranja = fases
+        A--D).
+  \item \textbf{Voltaje}: 5\,V DC.
+  \item \textbf{Corriente por fase}: $\sim$\SIrange{150}{200}{\milli\ampere}.
+  \item \textbf{Reducción interna}: $\approx 64{:}1$ (real $\approx 63.68{:}1$).
+  \item \textbf{Pasos por revolución del eje de salida}: 2048 (\emph{full-step}) / 4096
+        (\emph{half-step}).
+  \item \textbf{Torque}: $\sim$\SIrange{0.3}{0.5}{\kilo\gram\centi\meter} (bajo, adecuado
+        para agujas e indicadores).
+  \item \textbf{Velocidad máxima}: $\sim$\SIrange{10}{15}{RPM} (limitado por la caja
+        reductora).
+\end{itemize}
+
+\subsubsection{Motor bipolar (NEMA 17)}
+Cada bobina tiene dos terminales y la corriente debe invertirse para completar la
+secuencia de pasos. Requiere un puente H por fase (integrado en \emph{drivers} como
+A4988/DRV8825).
+\begin{itemize}
+  \item \textbf{Cables}: 4 (dos por bobina: $A+$, $A-$, $B+$, $B-$).
+  \item \textbf{Voltaje}: \SIrange{12}{24}{\volt} típico.
+  \item \textbf{Corriente por fase}: \SIrange{0.5}{2.5}{\ampere} según modelo.
+  \item \textbf{Pasos por revolución}: 200 ($1.8\si{\degree}$/paso).
+  \item \textbf{Torque}: \SIrange{2}{6}{\kilo\gram\centi\meter} (alto, adecuado para CNC,
+        robótica).
+  \item \textbf{Microstepping}: 1/2, 1/4, 1/8, 1/16 con A4988 (hasta 1/32 con DRV8825).
+\end{itemize}
+
+\subsection{Modos de excitación}
+\subsubsection{Wave Drive (1 fase ON)}
+Solo una bobina energizada a la vez. Consumo bajo, menor torque, mayor vibración.
+Secuencia: A$\to$B$\to$C$\to$D$\to$A\ldots
+
+\subsubsection{Full-Step (2 fases ON)}
+Dos bobinas adyacentes energizadas simultáneamente. Máximo torque por paso. El rotor se
+alinea entre dos polos. Para el 28BYJ-48 con reducción: \textbf{2048 pasos/revolución}.
+\begin{table}[H]\centering
+\caption{Secuencia \emph{full-step} para motor unipolar (4 fases).}
+\begin{tabular}{ccccc}
+\toprule
+Paso & IN1 & IN2 & IN3 & IN4 \\
+\midrule
+1 & 1 & 0 & 0 & 0 \\
+2 & 0 & 1 & 0 & 0 \\
+3 & 0 & 0 & 1 & 0 \\
+4 & 0 & 0 & 0 & 1 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Half-Step (8 fases)}
+Alterna entre activar una y dos bobinas, duplicando la resolución angular. Para el
+28BYJ-48 con reducción: \textbf{4096 pasos/revolución} ($\sim 0.088\si{\degree}$/paso).
+Movimiento más suave, menor vibración, torque ligeramente inferior al \emph{full-step} de
+2 fases.
+\begin{table}[H]\centering
+\caption{Secuencia \emph{half-step} para motor unipolar (8 fases).}
+\begin{tabular}{ccccl}
+\toprule
+Paso & IN1 & IN2 & IN3 & IN4 \quad Descripción \\
+\midrule
+1 & 1 & 0 & 0 & 0 \quad Fase A \\
+2 & 1 & 1 & 0 & 0 \quad Fases A+B \\
+3 & 0 & 1 & 0 & 0 \quad Fase B \\
+4 & 0 & 1 & 1 & 0 \quad Fases B+C \\
+5 & 0 & 0 & 1 & 0 \quad Fase C \\
+6 & 0 & 0 & 1 & 1 \quad Fases C+D \\
+7 & 0 & 0 & 0 & 1 \quad Fase D \\
+8 & 1 & 0 & 0 & 1 \quad Fases D+A \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Resolución angular y reducción mecánica}
+El 28BYJ-48 contiene un tren de engranajes interno con relación $\approx 64{:}1$. El
+ángulo de paso del rotor es $5.625\si{\degree}$, lo que da 64 pasos por revolución
+interna.
+\begin{align}
+  \text{SPR}_\text{full-step} &= \frac{360\si{\degree}}{5.625\si{\degree}}\times 64 =
+        64\times 32 = 2048 \text{ pasos/revolución del eje}, \\
+  \text{SPR}_\text{half-step} &= 2\times\text{SPR}_\text{full-step} = 4096
+        \text{ pasos/revolución del eje}, \\
+  \theta_\text{paso,half} &= \frac{360\si{\degree}}{4096}\approx 0.088\si{\degree}/\text{paso}.
+\end{align}
+\begin{table}[H]\centering
+\caption{Resolución angular según modo de excitación (28BYJ-48).}
+\begin{tabular}{lccc}
+\toprule
+Modo de excitación & Pasos/rev (eje) & Ángulo/paso & Resolución \\
+\midrule
+Full-step (4 fases) & 2048 & $0.176\si{\degree}$ & Media \\
+Half-step (8 fases) & 4096 & $0.088\si{\degree}$ & Alta \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Relación RPM — intervalo entre pasos}
+La velocidad angular se controla mediante el retardo entre pasos consecutivos:
+\begin{align}
+  f_\text{paso} &= \frac{\text{RPM}\times\text{SPR}}{60} \quad [\text{pasos/s}], \\
+  T_\text{paso} &= \frac{1}{f_\text{paso}} = \frac{60}{\text{RPM}\times\text{SPR}} \quad [\text{s}].
+\end{align}
+Por ejemplo, para 10\,RPM en modo \emph{half-step}:
+$T_\text{paso} = 60/(10\times 4096) = \SI{1.46}{\milli\second}$/paso. El 28BYJ-48 tiene un
+retardo mínimo de $\sim\SI{2}{\milli\second}$ entre pasos antes de perder la
+sincronización, lo que limita la velocidad máxima a $\sim$15\,RPM en \emph{half-step}.
+
+\subsection{El driver ULN2003}
+El ULN2003A es un arreglo de \textbf{7 pares Darlington NPN} con diodos de protección
+internos (\emph{flyback}) integrados. Es el complemento natural del motor unipolar, ya
+que cada par Darlington actúa como interruptor de baja impedancia para una bobina.
+\begin{table}[H]\centering
+\caption{Características eléctricas del ULN2003A.}
+\begin{tabular}{lll}
+\toprule
+Parámetro & Valor & Observación \\
+\midrule
+Canales & 7 (pares Darlington) & Se usan 4 para el 28BYJ-48 \\
+$V_{CE(\text{sat})}$ & $\le\SI{1.6}{\volt}$ & A $I_C=\SI{350}{\milli\ampere}$ \\
+$I_{C,\max}$ & 500\,mA por canal & Suficiente para el 28BYJ-48 ($\sim$200\,mA) \\
+$V_{I(\text{on})}$ & $\ge\SI{2.4}{\volt}$ & Compatible con 3.3\,V y 5\,V \\
+Diodos \emph{flyback} & Integrados (\emph{clamp}) & Protección contra transitorios inductivos \\
+$V_\text{clamp}$ & $\le\SI{50}{\volt}$ & Adecuado para motores de 5--12\,V \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{nota}[Diodos de protección integrados]
+A diferencia de la P6, donde se seleccionó explícitamente un diodo \emph{flyback}
+externo para cada carga inductiva, el ULN2003 \textbf{incluye diodos de \emph{clamp}
+internos} entre cada salida y el pin COM (pin 9). Este pin debe conectarse a $V_{CC}$
+del motor para que los diodos proporcionen el camino de recirculación de corriente al
+apagar cada bobina. Si el pin COM se deja flotante, la protección se pierde y los
+transitorios inductivos pueden dañar los Darlington.
+\end{nota}
+
+\subsection{Control STEP/DIR con A4988 (alternativa)}
+El A4988 es un \emph{driver} de \emph{microstepping} con traductor incorporado para
+motores bipolares. Su interfaz simplificada requiere solo dos señales:
+\textbf{STEP} (un pulso = un micropaso) y \textbf{DIR} (dirección).
+\begin{table}[H]\centering
+\caption{Comparación de drivers: ULN2003 vs A4988.}
+\begin{tabular}{lll}
+\toprule
+Característica & ULN2003 + 28BYJ-48 & A4988 + NEMA 17 \\
+\midrule
+Tipo de motor & Unipolar (5 cables) & Bipolar (4 cables) \\
+Control MCU & 4 pines (secuencia) & 2 pines (STEP + DIR) \\
+Secuencia en SW & Sí (tabla en firmware) & No (traductor interno) \\
+Microstepping & No nativo & 1/2, 1/4, 1/8, 1/16 \\
+Voltaje motor & 5\,V & 12--24\,V \\
+Corriente por fase & $\sim$200\,mA & 0.5--2.5\,A \\
+Torque & Bajo ($\sim$0.4\,kg$\cdot$cm) & Alto ($\sim$4\,kg$\cdot$cm) \\
+Velocidad máx & $\sim$15\,RPM & $\sim$600\,RPM \\
+Protección \emph{flyback} & Integrada (\emph{clamp}) & Puente H interno \\
+Fuente externa & Opcional (VSYS ok) & Obligatoria \\
+Costo & Bajo & Medio \\
+Aplicación & Indicadores, prototipo & CNC, robótica, actuación \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Aplicación en instrumentación aeronáutica: ARINC 429 Label 204}
+En los instrumentos analógicos-electrónicos de cabina (\emph{glass-analog hybrid}), la
+aguja es movida por un motor a pasos. El sistema recibe una palabra ARINC 429 con un
+Label específico (por ejemplo, Label 204 para corrección barométrica o Label 203 para
+indicador de RPM). El procesador decodifica el valor BNR (\emph{Binary Number
+Representation}), calcula la posición angular correspondiente y envía los pasos
+necesarios al \emph{driver} para actualizar la carátula.
+\begin{table}[H]\centering
+\caption{Estructura de una palabra ARINC 429 BNR (Label 204, corrección barométrica).}
+\begin{tabular}{llll}
+\toprule
+Bits & Campo & Contenido & Ejemplo \\
+\midrule
+1--8 & Label & 204 (octal, invertido) & 00110100 \\
+9--10 & SDI & Source ID & 00 \\
+11--28 & Datos BNR & Ángulo codificado ($0$--$360\si{\degree}$) & Variable \\
+29 & Signo/SSM & Estado (00 = Normal) & 0 \\
+30--31 & SSM & Sign/Status Matrix & 00 \\
+32 & P & Paridad impar & Calculada \\
+\bottomrule
+\end{tabular}
+\end{table}
+El sistema de posicionamiento debe: (1) validar la paridad impar (bit 32) para detectar
+errores de transmisión; (2) verificar el SSM (bits 30--31) para confirmar datos válidos
+(00 = \emph{Normal Operation}); (3) extraer el ángulo BNR del campo de datos; (4)
+calcular la diferencia entre la posición actual y la deseada ($\Delta$ pasos); (5) elegir
+la dirección de menor recorrido para minimizar el tiempo de actualización.
+
+% ============================================================================
+\section{Consideraciones de Seguridad}
+\begin{enumerate}
+  \item \textbf{Límites de corriente}: los motores a pasos consumen corriente constante
+        incluso cuando están detenidos (\emph{holding torque}). Si se mantienen
+        energizados por períodos prolongados, las bobinas y el \emph{driver} se
+        calientan. Llamar \code{release()} para desactivar las bobinas cuando no se
+        necesita mantener posición.
+  \item \textbf{Desacoplo de potencia}: instalar un condensador electrolítico de
+        $100\,\mu$F / 16\,V cerca de los pines de alimentación del ULN2003 (o en
+        VMOT--GND del A4988) para absorber transitorios de conmutación.
+  \item \textbf{No desconectar bobinas con \emph{driver} energizado}: especialmente con
+        el A4988, desconectar las bobinas del motor mientras el \emph{driver} suministra
+        corriente genera un arco que destruye los transistores del puente H.
+  \item \textbf{GND común obligatorio}: la tierra del MCU y la tierra de la fuente del
+        motor deben estar conectadas. Sin GND común, las señales lógicas no tienen
+        referencia y el \emph{driver} no responde correctamente.
+  \item \textbf{Fuente adecuada}: alimentar el 28BYJ-48 con 5\,V, nunca con 12\,V
+        (destruye las bobinas). Para NEMA 17, usar fuente externa de 12--24\,V con
+        capacidad de corriente nominal del motor.
+  \item \textbf{Fin de carrera para \emph{homing}}: si se implementa \emph{homing},
+        verificar que el microswitch esté correctamente cableado y probado antes de
+        ejecutar. Establecer siempre un límite máximo de pasos como seguridad contra
+        falla del sensor.
+\end{enumerate}
+
+% ============================================================================
+\section{Equipo y Materiales}
+\begin{table}[H]\centering
+\caption{Lista de componentes para la Práctica 7.}
+\begin{tabular}{clll}
+\toprule
+Cant.\ & Componente & Especificación & Uso \\
+\midrule
+1 & Microcontrolador & ESP32 DevKit / RP2040 & Control de secuencias GPIO \\
+1 & Cable USB & Micro-B / USB-C & Programación y alimentación \\
+1 & Protoboard & 830 puntos & Prototipado \\
+--- & Alambre AWG 22 & Varios colores & Conexiones \\
+1 & 28BYJ-48 & Motor unipolar, 5\,V & Caso principal \\
+1 & ULN2003 (módulo) & Arreglo Darlington & \emph{Driver} del 28BYJ-48 \\
+1 & NEMA 17 (opcional) & Motor bipolar, $1.8\si{\degree}$/paso & Caso alternativo \\
+1 & A4988 (opcional) & \emph{Driver} \emph{microstepping} & \emph{Driver} del NEMA 17 \\
+1 & Microswitch & Normalmente abierto (NO) & Fin de carrera (\emph{homing}) \\
+1 & Condensador & $100\,\mu$F / 16\,V & Desacoplo fuente motor \\
+\bottomrule
+\end{tabular}
+\end{table}
+\textbf{Equipo de laboratorio}: laptop con IDE (Thonny / VS Code + Pymakr) y monitor
+serie; fuente de alimentación DC de 5\,V (para 28BYJ-48) o 12\,V (para NEMA 17);
+multímetro digital (DMM) para medir corriente de bobina y voltajes; osciloscopio
+(recomendado) para visualizar secuencias IN1--IN4 o pulsos STEP/DIR.
+
+% ============================================================================
+\section{Etapa de Diseño}
+
+\subsection{Caso de estudio 1: secuencia de excitación (28BYJ-48 + ULN2003)}
+\textbf{Objetivo}: verificar la correcta implementación de las secuencias
+\emph{full-step} y \emph{half-step}, observar el movimiento del motor y medir con
+osciloscopio las señales en IN1--IN4.
+
+\textbf{Cálculos de resolución} (modo \emph{half-step}, el modo por defecto del
+firmware): $\text{SPR}=4096$ pasos/revolución;
+$\theta_\text{paso}=360/4096=0.0879\si{\degree}$/paso; pasos para $90\si{\degree}=1024$;
+pasos para $180\si{\degree}=2048$; pasos para $360\si{\degree}=4096$.
+
+\textbf{Cálculo de velocidad} (RPM$=10$, conservadora):
+$T_\text{paso}=60/(10\times 4096)=\SI{1.46}{\milli\second}$/paso. Retardo mínimo
+recomendado para el 28BYJ-48: $\sim\SI{2}{\milli\second}$. A \SI{2}{\milli\second} por
+paso: RPM$=60/(0.002\times 4096)\approx 7.3$.
+
+\textbf{Corriente y potencia del \emph{driver}}: corriente por fase del 28BYJ-48
+$\sim\SI{200}{\milli\ampere}$. En modo \emph{half-step}, 1 o 2 fases activas
+simultáneamente: $I_{1\,\text{fase}}=\SI{200}{\milli\ampere}$,
+$I_{2\,\text{fases}}=2\times 200=\SI{400}{\milli\ampere}$,
+$P_\text{motor,max}=V_{CC}\times I_{2\,\text{fases}}=5\times 0.4=\SI{2.0}{\watt}$. Caída
+en el ULN2003 por canal: $V_{CE(\text{sat})}\le\SI{1.6}{\volt}$ a \SI{350}{\milli\ampere}.
+Voltaje real en la bobina: $V_\text{bobina}=5-1.6=\SI{3.4}{\volt}$.
+
+\begin{nota}[Caída $V_{CE}$ del Darlington]
+La caída de $\sim$1.6\,V del par Darlington es significativa comparada con la
+alimentación de 5\,V. Reduce el voltaje efectivo en la bobina al 68\,\%, lo que
+disminuye ligeramente el torque comparado con la alimentación directa. Para el
+28BYJ-48, esto es aceptable porque el motor fue diseñado para operar con esta caída.
+\end{nota}
+
+\subsection{Caso de estudio 2: homing — posición de referencia}
+\textbf{Objetivo}: implementar un algoritmo de referenciación que gire el motor en
+sentido antihorario hasta activar un microswitch (fin de carrera), estableciendo la
+posición cero del instrumento.
+
+\textbf{Diseño del algoritmo}: (1) reducir velocidad al 50\,\% de la nominal (mayor
+fiabilidad cerca del sensor); (2) girar en sentido CCW (antihorario) paso a paso; (3) en
+cada paso, leer el pin del \emph{endstop} (activo LOW con \emph{pull-up} interno); (4) al
+detectar \emph{endstop}$=0$: detener, avanzar 10 pasos (CW) para liberar el sensor; (5)
+establecer \code{posicion\_actual = 0}; (6) límite de seguridad: máximo 1000 pasos sin
+detección $\Rightarrow$ abortar con error.
+
+\subsection{Asignación de pines (A4988, alternativa)}
+\begin{table}[H]\centering
+\caption{Asignación de pines para A4988 según plataforma (alternativa).}
+\begin{tabular}{llll}
+\toprule
+Señal & ESP32 & RP2040 & Descripción \\
+\midrule
+STEP & GPIO18 & GP18 & Pulso por cada micropaso \\
+DIR & GPIO19 & GP19 & Dirección (HIGH=CW, LOW=CCW) \\
+ENABLE & GPIO5 & GP5 & Habilitación (activo LOW) \\
+ENDSTOP & GPIO4 & GP4 & Fin de carrera (\emph{pull-up}, a GND) \\
+GND & GND & GND & Tierra común \\
+VMOT & 12\,V ext.\ & 12\,V ext.\ & Alimentación NEMA 17 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================================================
+\section{Procedimiento Experimental}
+
+\subsection{Paso 1: preparación del entorno}
+\begin{enumerate}
+  \item Instalar MicroPython en la placa (o configurar PlatformIO con
+        \code{PRACTICE=7}).
+  \item Verificar que todos los componentes estén disponibles.
+  \item Con la fuente apagada, conectar el módulo ULN2003 al motor 28BYJ-48 (conector
+        de 5 pines; verificar orientación).
+  \item Conectar IN1--IN4 del ULN2003 a los GPIO correspondientes.
+  \item Conectar VCC del módulo a 5\,V y GND a tierra común con el MCU.
+  \item Si se usa \emph{homing}: conectar microswitch entre ENDSTOP y GND.
+  \item Sincronizar archivos del repositorio: \code{main.py}, \code{boot.py},
+        \code{lib/stepper\_uln2003.py}.
+\end{enumerate}
+
+\subsection{Modos de operación del firmware}
+\begin{table}[H]\centering
+\caption{Modos de operación del firmware P7.}
+\begin{tabular}{cll}
+\toprule
+Modo & Nombre & Descripción \\
+\midrule
+1 & Jog manual & \code{+} avanza 1 paso, \code{-} retrocede 1 paso \\
+2 & Mover N pasos & Ingresa pasos (positivo/negativo) y RPM; movimiento preciso \\
+3 & Barrido & Avanza hasta fin de carrera o límite, retrocede, repite \\
+4 & Homing & Retrocede hasta fin de carrera, libera, establece posición cero \\
+5 & Info del driver & Muestra configuración: tipo, pines, SPR, RPM \\
+\bottomrule
+\end{tabular}
+\end{table}
+Tecla \code{m} $\to$ regresar al menú en cualquier modo.
+
+\subsection{Caso 1: verificación de secuencia de fases}
+\textbf{Verificar con osciloscopio}: canales en IN1--IN4 con la secuencia
+\emph{half-step} de 8 estados; intervalo entre cambios de estado $\sim$\SI{3}{\milli\second}
+por defecto; los LEDs del módulo ULN2003 deben encenderse en secuencia. Si el motor
+vibra pero no gira: intercambiar IN2 e IN3 en el cableado.
+
+\subsection{Caso 2: homing (referenciación)}
+\textbf{Verificar}: el motor retrocede hasta activar el microswitch; se detiene y avanza
+10 pasos para liberar el sensor; si el \emph{endstop} no se detecta en 1000 pasos, aborta
+con mensaje de error.
+
+\subsection{Caso 3: posicionamiento ARINC 429 por terminal serial}
+El firmware recibe una trama hexadecimal (simulando Label 204), valida la paridad impar,
+extrae el ángulo BNR (bits 11--28), calcula la trayectoria mínima ($\Delta$ pasos con
+signo, plegando sobre $\pm\text{SPR}/2$) y mueve el motor en la dirección correspondiente.
+
+\subsubsection{Ejemplo de cálculo}
+Posición actual $90\si{\degree}$ (1024 pasos). Ángulo objetivo (de ARINC 429):
+$270\si{\degree}$ (3072 pasos).
+$$\Delta = 3072-1024 = 2048 \text{ pasos (CW)}.$$
+$2048=\text{SPR}/2$, por lo que cualquier dirección es equivalente: 2048 pasos. Si el
+objetivo fuera $300\si{\degree}$ (3413 pasos):
+$$\Delta = 3413-1024=2389 > 2048 \Rightarrow \Delta_\text{adj}=2389-4096=-1707
+\text{ (CCW, más corto)}.$$
+
+\subsection{Caso 4: barrido automático (Modo 3)}
+Avanza hasta el fin de carrera (o un límite de 400 pasos sin \emph{endstop}), retrocede,
+y repite. Verificar que el retorno llega a la posición inicial dentro del error de
+repetibilidad esperado.
+
+\subsection{Implementación C++ (PlatformIO)}
+El archivo \code{p7.cpp} implementa los modos usando la clase \code{LandingGear}
+(\code{common/landing\_gear.h}), que encapsula tanto la secuencia ULN2003 como el control
+STEP/DIR del A4988 según la macro \code{STEPPER\_ULN2003}. Compilar con
+\code{pio run -e esp32dev} o \code{pio run -e pico} (con \code{-DPRACTICE=7}).
+
+% ============================================================================
+\section{Alternativa de Trabajo en Casa (Multímetro + Simulación)}
+\label{sec:casa}
+
+Esta práctica es, junto con la P4, de las más viables para trabajar sin laboratorio: el
+kit 28BYJ-48 + ULN2003 es económico ($\sim$US\$3--5) y el osciloscopio es
+\textbf{recomendado, no obligatorio} — la verificación principal (¿gira el motor en el
+sentido y ángulo correctos?) puede hacerse a simple vista con un transportador.
+
+\paragraph{Con multímetro (en casa).} Medir la corriente de una bobina insertando el
+amperímetro en serie entre una salida del ULN2003 y la bobina (motor detenido, modo
+\emph{holding}): esperado $\sim$\SIrange{150}{200}{\milli\ampere} por fase activa.
+Verificar continuidad de las 4 (ULN2003) o 2 (A4988) bobinas con el óhmetro. Verificar
+5\,V (o 12\,V para NEMA 17) en la alimentación del \emph{driver}.
+
+\paragraph{Con simulación.} Proteus incluye modelos razonablemente completos de motor a
+pasos y de los \emph{drivers} ULN2003/A4988 — se puede simular la secuencia de excitación
+y observarla en un osciloscopio virtual, e incluso animar el giro del motor virtual antes
+de tener el motor físico. Es también una buena forma de practicar el cálculo de
+trayectoria mínima del Caso 3 sin hardware.
+
+\paragraph{Requiere laboratorio presencial.} La medición \emph{precisa} de repetibilidad
+(Tabla~13, 10 repeticiones con error en grados) requiere el motor físico y, para
+verificar el intervalo real entre pasos en microsegundos, un osciloscopio; a simple vista
+con un transportador solo se puede estimar el error grueso ($\pm$varios grados), no la
+precisión submilimétrica que exige el análisis de la \S11.
+
+\begin{table}[H]\centering
+\caption{Alternativas de trabajo en casa.}
+\begin{tabular}{lccc}
+\toprule
+Actividad & Multímetro & Simulación & Requiere laboratorio \\
+\midrule
+Secuencia de fases (Caso 1) & --- & Sí (visual) & Recomendado (osciloscopio) \\
+Corriente de bobina & Sí & --- & No \\
+Homing (Caso 2) & --- & Sí & No (con el motor físico en casa) \\
+Trayectoria mínima (Caso 3) & --- & Sí (lógica) & No \\
+Repetibilidad de precisión (\S11) & --- & No & Sí, para el error en grados \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================================================
+\section{Herramientas de Verificación}
+\subsection{Verificación con osciloscopio}
+\begin{enumerate}
+  \item \textbf{Secuencia IN1--IN4 (ULN2003)}: conectar 4 canales a IN1--IN4. Observar la
+        secuencia \emph{half-step} (8 estados) o \emph{full-step} (4 estados). Verificar
+        el intervalo entre cambios de estado ($\sim$\SIrange{2}{5}{\milli\second}).
+  \item \textbf{Señal STEP (A4988)}: tren de pulsos rectangulares. Frecuencia
+        $=\text{RPM}\times\text{SPR}/60$. Para 60\,RPM con 200 pasos/rev:
+        $f=\SI{200}{\hertz}$ ($T=\SI{5}{\milli\second}$).
+  \item \textbf{Señal DIR (A4988)}: nivel constante durante movimiento en una dirección.
+        Cambio de nivel = cambio de dirección.
+  \item \textbf{Corriente de bobina}: colocar resistencia \emph{shunt} ($1\,\Omega$) en
+        serie con una salida del ULN2003. Medir voltaje como $I=V_\text{shunt}/R_\text{shunt}$.
+        Esperado: $\sim$\SIrange{150}{200}{\milli\ampere} por bobina para el 28BYJ-48.
+\end{enumerate}
+\subsection{Verificación con multímetro}
+Medir voltaje en VCC del módulo ULN2003 (debe ser $\sim$5\,V); medir corriente total del
+motor detenido (\emph{holding}): $\sim$\SIrange{200}{400}{\milli\ampere} (1--2 fases
+activas); verificar continuidad de GND común entre MCU y módulo ULN2003.
+
+% ============================================================================
+\section{Registro de Datos y Análisis}
+
+\subsection{Tabla de precisión de posicionamiento}
+\begin{table}[H]\centering
+\caption{Bitácora de precisión y desempeño del motor a pasos.}
+\begin{tabular}{ccccc}
+\toprule
+Ángulo objetivo ($\si{\degree}$) & Pasos teóricos & Pasos ejecutados & Error medido ($\si{\degree}$) & Tiempo (s) \\
+\midrule
+0 (Home) & 0 & & & \\
+90 & 1024 & & & \\
+180 & 2048 & & & \\
+270 & 3072 & & & \\
+360 & 4096 & & & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Tabla de repetibilidad}
+\begin{table}[H]\centering
+\caption{Análisis de repetibilidad (10 repeticiones de $0\si{\degree}\to 180\si{\degree}$).}
+\begin{tabular}{cccc}
+\toprule
+Repetición & Ángulo final ($\si{\degree}$) & Error ($\si{\degree}$) & Observaciones \\
+\midrule
+1--10 & & & \\
+\midrule
+Promedio & & & \\
+Desv.\ estándar & & & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Tabla de velocidad y consumo}
+\begin{table}[H]\centering
+\caption{Consumo de corriente según modo de operación.}
+\begin{tabular}{lccl}
+\toprule
+Estado & Corriente (mA) & Voltaje bobina (V) & Observaciones \\
+\midrule
+Idle (\code{release()}) & $\sim 0$ & & Bobinas desactivadas \\
+Holding (1 fase) & $\sim 200$ & & Posición mantenida \\
+Holding (2 fases) & $\sim 400$ & & Máximo torque \\
+Movimiento (\emph{half-step}) & Variable & & Promedio medido \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Gráficas requeridas}
+\begin{enumerate}
+  \item \textbf{Secuencia IN1--IN4}: oscilograma de las 4 señales mostrando la secuencia
+        \emph{half-step} completa (8 estados).
+  \item \textbf{Error angular vs ángulo comandado}: gráfica de dispersión con barras de
+        error para la Tabla de precisión.
+  \item \textbf{Histograma de repetibilidad}: distribución de errores de las 10
+        repeticiones.
+  \item \textbf{Corriente vs tiempo}: forma de onda de corriente durante movimiento
+        (resistencia \emph{shunt} + osciloscopio).
+\end{enumerate}
+
+% ============================================================================
+\section{Análisis de Resultados}
+\begin{enumerate}
+  \item \textbf{Análisis de repetibilidad}: repetir 10 veces el movimiento de
+        $0\si{\degree}$ a $180\si{\degree}$. Medir el error de llegada final en cada
+        intento. Calcular media y desviación estándar. Discutir si existe pérdida de
+        pasos por resonancia o exceso de velocidad.
+  \item \textbf{Full-step vs half-step}: comparar cualitativamente el ruido, vibración y
+        suavidad del movimiento en ambos modos. Medir la resolución angular real y
+        compararla con la teórica.
+  \item \textbf{Efecto de la velocidad}: encontrar la velocidad máxima (RPM) a la que el
+        motor opera sin perder pasos. Graficar error vs RPM. Discutir la relación
+        torque-velocidad.
+  \item \textbf{Validación de trayectoria mínima}: para el Caso 3, verificar que el motor
+        elija la dirección de menor recorrido al cambiar entre posiciones distantes (ej.
+        $90\si{\degree}\to 300\si{\degree}$).
+  \item \textbf{Homing}: verificar que el procedimiento de referencia produce resultados
+        consistentes. ¿Cuál es la variabilidad de la posición cero después de 5
+        procedimientos de \emph{homing} consecutivos?
+  \item \textbf{Consumo energético}: comparar el consumo en \emph{holding} vs
+        movimiento. ¿Cuánta energía se ahorra al llamar \code{release()} cuando el motor
+        está detenido? Discutir el compromiso entre consumo y estabilidad de posición
+        (como un altavoz aeronave).
+\end{enumerate}
+
+% ============================================================================
+\section{Preguntas de Discusión y Refuerzo}
+\begin{enumerate}
+  \item \textbf{Resonancia}: explique el fenómeno de resonancia en motores a pasos y
+        cómo una rampa de aceleración por software ayuda a mitigar este problema en
+        instrumentos de vuelo. ¿A qué frecuencia de paso ocurre típicamente la
+        resonancia en el 28BYJ-48?
+  \item \textbf{Torque de mantenimiento}: ¿qué sucede con el consumo de potencia si se
+        dejan las bobinas energizadas mientras la aguja no se mueve? ¿Por qué se
+        prefiere este consumo en lugar de desactivar el motor en un ambiente de
+        vibración aeronáutica?
+  \item \textbf{Resolución}: si el instrumento requiere una resolución de
+        $0.01\si{\degree}$, ¿cómo modificaría el hardware (engranajes adicionales) o el
+        software (\emph{microstepping} con A4988 a 1/16) para lograrlo? Calcule los
+        pasos por revolución necesarios.
+  \item \textbf{Detección de fallas}: ¿cómo puede el software detectar que el motor ha
+        perdido pasos sin un \emph{encoder}? Proponga un método de verificación
+        periódica contra el sensor de \emph{homing}.
+  \item \textbf{ULN2003 vs puente H}: ¿por qué el ULN2003 no puede controlar un motor
+        bipolar (NEMA 17)? Explique la necesidad de invertir la corriente y cómo lo
+        resuelve el A4988.
+  \item \textbf{DO-178C}: en el contexto de instrumentos certificados, ¿a qué nivel DAL
+        (\emph{Design Assurance Level}) clasificaría el software de un indicador de
+        altitud? ¿Qué implicaciones tiene para las pruebas y verificación del código?
+  \item \textbf{Pérdida de pasos bajo carga}: si se aplica una carga mecánica progresiva
+        al eje del motor, ¿cómo se manifiesta la pérdida de pasos? ¿El motor se detiene
+        abruptamente o acumula error gradualmente?
+  \item \textbf{Consumo en \emph{standby}}: en un panel de instrumentos con 6
+        indicadores de motor a pasos, estime el consumo total si cada motor mantiene las
+        bobinas energizadas continuamente. ¿Es aceptable para un sistema alimentado por
+        batería de emergencia?
+  \item \textbf{Comparación servo vs \emph{stepper}}: compare las ventajas y
+        desventajas de un servomotor (P5) versus un motor a pasos (P7) para posicionar
+        una aguja de instrumento. Considere resolución, costo, complejidad del
+        \emph{driver} y fiabilidad.
+\end{enumerate}
+
+% ============================================================================
+\section{Entregables (Formato AIAA)}
+\begin{enumerate}
+  \item \textbf{Código fuente}: \code{main.py} + \code{lib/stepper\_uln2003.py}
+        (MicroPython) o \code{p7.cpp} (C++).
+  \item \textbf{Memoria de cálculo}: SPR, resolución angular, intervalos de paso,
+        corriente de bobina.
+  \item \textbf{Tabla de secuencias}: \emph{full-step} y \emph{half-step} implementadas,
+        con verificación por osciloscopio.
+  \item \textbf{Tabla de precisión} (\S10.1): ángulos objetivo vs medidos.
+  \item \textbf{Análisis de repetibilidad} (\S10.2): media, desviación estándar,
+        histograma.
+  \item \textbf{Oscilogramas}: secuencia IN1--IN4 (o STEP/DIR) capturada
+        experimentalmente.
+  \item \textbf{Análisis}: mínimo 4 de los 6 puntos de la \S11.
+  \item \textbf{Discusión}: responder $\ge 4$ de las 9 preguntas.
+  \item \textbf{Conclusiones}: hallazgos, fuentes de error, mejoras propuestas.
+  \item \textbf{Referencias}: $\ge 3$ fuentes (\emph{datasheets} del 28BYJ-48 y ULN2003A,
+        libro de actuadores, normativa DO-160G).
+\end{enumerate}
+
+% ============================================================================
+\section{Referencias}
+\begin{enumerate}
+  \item Kenjo, T., Sugawara, A. \emph{Stepping Motors and Their Microprocessor
+        Controls}, 2nd ed., Oxford University Press, 1994.
+  \item Texas Instruments. \emph{ULN2003A Seven Darlington Arrays Datasheet}, SLRS027,
+        Rev.\ T.
+  \item Kiatronics. \emph{28BYJ-48 --- 5V Stepper Motor Technical Specifications}, 2015.
+  \item Allegro MicroSystems. \emph{A4988 DMOS Microstepping Driver with Translator
+        Datasheet}, Rev.\ 5.
+  \item ARINC. \emph{Specification 429 Part 1}: Mark 33 Digital Information Transfer
+        System (DITS), 2004.
+  \item RTCA. \emph{DO-160G}: Environmental Conditions and Test Procedures for Airborne
+        Equipment, Sec.\ 16 (Power Input), 2010.
+  \item RTCA. \emph{DO-178C}: Software Considerations in Airborne Systems and Equipment
+        Certification, 2011.
+  \item Moir, I., Seabridge, A. \emph{Aircraft Systems: Mechanical, Electrical, and
+        Avionics Subsystems Integration}, 3rd ed., Wiley, 2008.
+  \item Collins Aerospace. \emph{Pro Line Fusion --- Air Data and Attitude Heading
+        Reference System}, Technical Description, 2020.
+  \item MicroPython. \emph{machine.Pin Documentation}.
+\end{enumerate}
+
+% ============================================================================
+\appendix
+\section{Código Fuente del Repositorio}
+\begin{table}[H]\centering
+\caption{Estructura de archivos de la Práctica 7.}
+\small
+\begin{tabular}{p{3.4cm}p{9.8cm}}
+\toprule
+Plataforma & Archivo(s) / Descripción \\
+\midrule
+MicroPython/ESP32 & \code{P7/main.py} (5 modos), \code{P7/boot.py},
+                    \code{P7/lib/stepper\_uln2003.py}, \code{P7/lib/stepper\_a4988.py} \\
+MicroPython/RP2040 & Adaptación de pines (idéntica lógica), mismos \emph{drivers} \\
+C++ / PlatformIO & \code{practices/p7.cpp}, \code{common/landing\_gear.h}
+                   (\code{LandingGear}, control ULN2003/A4988) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Diferencias entre plataformas}
+\begin{table}[H]\centering
+\caption{Resumen de diferencias P7 entre plataformas.}
+\begin{tabular}{lll}
+\toprule
+Aspecto & ESP32 & RP2040 \\
+\midrule
+Pines ULN2003 & GPIO26, 25, 33, 32 & GP26, 27, 28, 22 \\
+Pines A4988 & GPIO18, 19, 5 & GP18, 19, 5 \\
+Endstop & GPIO4 & GP4 \\
+GPIO máx & 39 (no todos de salida) & 30 (todos bidireccionales) \\
+\emph{Pull-up} interno & Sí (GPIOs de entrada) & Sí (todos los GPIOs) \\
+Lógica firmware & Idéntica & Idéntica \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Contexto Aeronáutico Complementario}
+\subsection{Instrumentación analógica de cabina}
+En \emph{cockpits} \emph{glass-analog hybrid}, los indicadores de aguja siguen siendo
+comunes como respaldo o como instrumentos primarios en aviones de aviación general. Cada
+instrumento contiene un micro motor a pasos (frecuentemente unipolar con reducción) que
+mueve la aguja en respuesta a datos del bus ARINC 429. El proceso de operación es: (1) al
+encender (\emph{power-up}), el instrumento ejecuta una secuencia de \emph{homing}: la
+aguja barre toda la carátula hasta un sensor óptico o magnético que define el cero
+mecánico; (2) el procesador se suscribe a las palabras ARINC 429 pertinentes; (3) al
+recibir cada palabra válida, calcula la posición angular proporcional al valor BNR y
+envía los pasos necesarios al \emph{driver}, eligiendo la trayectoria mínima; (4) si la
+trama indica estado inválido o se pierde la señal por más de 2\,s, la aguja se mueve a
+una posición \emph{flagged} (cruz roja) y se ilumina una bandera de falla.
+
+\subsection{Ventajas de los motores a pasos en instrumentación}
+\textbf{Posicionamiento absoluto sin \emph{encoder}}: reducción de peso, costo y
+complejidad. \textbf{Alta resolución}: con reducción mecánica, se alcanzan resoluciones
+de $<0.1\si{\degree}$. \textbf{Holding torque}: la aguja mantiene su posición bajo
+vibración (frecuencias típicas en aeronaves: 10--500\,Hz según DO-160G Sección 8).
+\textbf{Compatibilidad digital}: control directo desde el bus de datos sin conversiones
+D/A.
+
+\subsection{Normativa aplicable}
+\textbf{DO-160G, Sección 8} (Vibración): los motores a pasos deben mantener la precisión
+de indicación bajo los perfiles de vibración especificados para la zona de montaje del
+instrumento. \textbf{DO-160G, Sección 16} (Potencia de entrada): el instrumento debe
+operar correctamente bajo variaciones de voltaje del bus DC (típicamente 18--32\,VDC
+para bus de 28\,V).
+
+\end{document}

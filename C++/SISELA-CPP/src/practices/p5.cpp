@@ -31,30 +31,30 @@ static const float ADC_VREF = 3.3f;
 static int adcRead() { return analogRead(pins().adc_altitude); }
 
 static void run_adc_block(float fs, uint16_t n, const char *note) {
-  Serial.printf("%s  Fs=%.1f Hz  n=%u  (Nyquist %.1f Hz)\n", note, fs, n, fs / 2.0f);
+  serialPrintf(Serial, "%s  Fs=%.1f Hz  n=%u  (Nyquist %.1f Hz)\n", note, fs, n, fs / 2.0f);
   const uint16_t N = 1024;
   siglab::BlockSampler<N> bs(fs);
   auto r = bs.run(adcRead);
   r.report(Serial);
   Serial.println("t_us,counts,v");
   for (uint16_t i = 0; i < N; i++)
-    Serial.printf("%lu,%.0f,%.4f\n", (unsigned long)r.t_us[i],
+    serialPrintf(Serial, "%lu,%.0f,%.4f\n", (unsigned long)r.t_us[i],
                   r.samples[i], r.samples[i] / ADC_FS * ADC_VREF);
-  Serial.printf("# fin fs_real=%.2f jitter_us=%.2f full_scale=%d\n",
+  serialPrintf(Serial, "# fin fs_real=%.2f jitter_us=%.2f full_scale=%d\n",
                 r.fs_actual, r.jitter_us, ADC_FS);
 }
 
 namespace practices {
   void setup() {
     Serial.println("[P5] Servomotor PWM + analisis de senales");
-    Serial.printf("Pin servo: %d\n", PIN_SERVO_AILERON);
+    serialPrintf(Serial, "Pin servo: %d\n", PIN_SERVO_AILERON);
 
     controls.begin(PIN_SERVO_AILERON, -1);
     analogReadResolution(ADC_BITS);
 
     if (pins().adc_altitude >= 0) {
       pinMode(pins().adc_altitude, INPUT);
-      Serial.printf("ADC en pin %d (%d bit)\n", pins().adc_altitude, ADC_BITS);
+      serialPrintf(Serial, "ADC en pin %d (%d bit)\n", pins().adc_altitude, ADC_BITS);
     }
     Serial.println("Modos: 1=Barrido 2=ADC 5=JitterPWM 6=Muestreo/aliasing 7=Escalon");
     Serial.println("Envia el numero + ENTER.  Toolkit PC: tools/sisela_signal/");
@@ -91,11 +91,11 @@ namespace practices {
         auto rq = post.run(adcRead);
         Serial.println("t_us,counts,v");
         for (uint16_t i = 0; i < 64; i++)
-          Serial.printf("%lu,%.0f,%.4f\n", (unsigned long)rp.t_us[i], rp.samples[i],
+          serialPrintf(Serial, "%lu,%.0f,%.4f\n", (unsigned long)rp.t_us[i], rp.samples[i],
                         rp.samples[i] / ADC_FS * ADC_VREF);
         uint32_t off = rp.t_us[63];
         for (uint16_t i = 0; i < 448; i++)
-          Serial.printf("%lu,%.0f,%.4f\n", (unsigned long)(off + rq.t_us[i]), rq.samples[i],
+          serialPrintf(Serial, "%lu,%.0f,%.4f\n", (unsigned long)(off + rq.t_us[i]), rq.samples[i],
                         rq.samples[i] / ADC_FS * ADC_VREF);
         Serial.println("# fin  PC: python -m sisela_signal characterize --file step.csv --col v --mode step");
         mode = 0;
@@ -116,7 +116,7 @@ namespace practices {
       static uint32_t lastLog = 0;
       if (millis() - lastLog >= 500) {
         lastLog = millis();
-        Serial.printf("ADC: %d -> Angulo: %d\n", raw, angle);
+        serialPrintf(Serial, "ADC: %d -> Angulo: %d\n", raw, angle);
       }
     }
   }

@@ -1,6 +1,7 @@
 # Reporte de verificación — Prácticas P1–P8 (SISELA-Init)
 
-**Fecha:** 2026-09-10
+**Fecha:** 2026-09-10 (Fase 1) · 2026-09-14 (Fase 2, solo P8) · 2026-09-17 (verificación
+mayor: PlatformIO real, manuales p6–p8, alternativa de trabajo en casa — ver §6)
 **Alcance:** auditoría de consistencia entre los **manuales** (`~/Descargas/manuales/Manuales/pN.pdf`,
 generados con LaTeX/MiKTeX, sin fuentes `.tex` en el repo) y las **cuatro implementaciones**:
 MicroPython/ESP32, MicroPython/RP2040, C++/PlatformIO (ESP32) y C++/PlatformIO (RP2040).
@@ -244,14 +245,23 @@ Estado: ✅ corregido · ⏳ pendiente (fase indicada) · 📝 solo se documenta
 | D-21 | 🟡 | `MicroPython/RP2040/P5/{README.md,docs/oscilograma.md}` | Enlaces a `../../GUIA_MIGRACION.md` (no existe en el repo) | 1 | ✅ (oscilograma corregido; README pendiente Fase 3) |
 | D-22 | 🔴 | `MicroPython/{ESP32,RP2040}/P4/docs/oscilograma.md` | Todo el documento describía el MPX5500DP (CSV `pressure_kPa`, `adc_raw`) — sensor obsoleto | 1 | ✅ reescrito para BMP180 + modos 6–7 |
 | D-23 | 🟠 | `MicroPython/ESP32/P2/tools/live_plot.py` | **Archivo Python roto de origen**: líneas 2–3 son `"""` seguido de `"""Live plotter...` → `SyntaxError` (docstring vacío + apertura de cadena sin cerrar). El script nunca se ha podido ejecutar. `main.py` de P2 no se ve afectado. | 3 (P2 congelada; pendiente de autorización) | ⏳ |
+| D-26 | 🔴 | `C++/.../include/pins/pins_types.h`, `pins_esp32.h`, `pins_rp2040.h` | **Todo el C++ nunca había compilado con PlatformIO real** (solo se había verificado con un *stub* de `g++`, ver §5). `Pins`/`StepperA4988Pins`/`StepperULN2003Pins` tienen inicializadores de miembro por defecto, lo que en `-std=gnu++11` (el estándar por defecto de los cores Arduino ESP32/RP2040) les quita la condición de *agregado* → las tablas de pines de **las 8 prácticas** fallaban con `error: could not convert ... to 'Pins'`. | 4 (verificación mayor) | ✅ `-std=gnu++17` en `platformio.ini` |
+| D-27 | 🟠 | `C++/.../src/practices/p1.cpp`, `p7.cpp` | `loop()` llama a `mode_blink/mode_chaser/mode_monitor/mode_integrated` (p1) y `mode_jog/mode_move_n/mode_sweep/mode_homing` (p7) **antes** de su definición en el archivo, sin *forward declaration* → `error: 'mode_X' was not declared in this scope`. Nunca se había compilado realmente. | 4 | ✅ *forward declarations* añadidas |
+| D-28 | 🔴 | `C++/.../src/practices/p4.cpp` | Las variables `B1`/`B2` (coeficientes de calibración BMP180) colisionan con las macros `B0..B11111111` de `binary.h` del core Arduino (`#define B1 1`) → `error: expected unqualified-id before numeric constant` en la propia declaración. Nunca se había compilado realmente. | 4 | ✅ renombradas a `Bc1`/`Bc2` |
+| D-29 | 🔴 | `C++/.../src/common/siglab.h`, y `Serial.printf(...)` directo en `p1–p8.cpp` (53 llamadas) | El core Arduino-mbed de RP2040 (el que trae `platform = raspberrypi` por defecto) **no implementa `Stream::printf`/`Serial.printf`** (a diferencia del core ESP32) → `error: 'class arduino::...' has no member named 'printf'`. Afectaba a **todas** las prácticas que se compilaran con ese `PRACTICE` activo (P1 confirmado; P4/P5/P8 vía `siglab.h`, incluido *siempre*, aunque el resto del archivo esté apagado por `#if PRACTICE==N`, porque `Stats`/`BlockResult` no son plantillas y se compilan igual). Nunca se había compilado con PlatformIO de verdad para `pico`. | 4 (verificación mayor) | ✅ helper `serialPrintf(Stream&, fmt, ...)` (vsnprintf + print) en `include/board_config.h`, usado por las 8 prácticas y por `siglab.h` |
+| D-30 | 🔴 | `C++/.../src/common/flight_controls.h`, `esc.h` | `analogWriteFreq()`/`analogWriteRange()` (fijan 50 Hz para servos/ESC) son API del core **earlephilhower** (arduino-pico), no del core Arduino-mbed oficial que `platformio.ini` estaba resolviendo por defecto para `board = pico` → `error: 'analogWriteFreq' was not declared in this scope`. Bug de configuración de plataforma, no de código: el firmware siempre asumió earlephilhower (macros `GPx`, esta API de PWM), pero el `.ini` nunca lo fijó explícitamente. | 4 | ✅ `board_build.core = earlephilhower` en `[env:pico]` de `platformio.ini` |
+| D-31 | 🔴 | `C++/.../src/practices/p4.cpp` | `Wire.begin(SDA_P, SCL_P)` (forma de 2 argumentos, estilo ESP32) no existe en `TwoWire` del core RP2040 earlephilhower, que solo acepta `begin()`/`begin(address)` — los pines se fijan antes con `setSDA()`/`setSCL()`. | 4 | ✅ `#ifdef ARDUINO_ARCH_ESP32` con rama RP2040 (`setSDA/setSCL` + `begin()`) |
 
-**Nota de alcance (Fase 2):** el usuario acotó explícitamente esta fase a **solo P8**
+**Nota de alcance (Fase 2, histórica):** esa fase se acotó explícitamente a **solo P8**
 («genera la fase 2, solo vamos a cambiar la práctica 8»). Las acciones de P6/P7 previstas en el
-plan original (D-11, D-12, D-14, D-16) siguen abiertas y se marcan «no solicitada» — no se tocó
-ningún archivo de P6/P7 salvo el efecto colateral de la corrección de `propulsion.h` (D-24), que
-es un header compartido y no cambia el comportamiento correcto de P6 (lo corrige).
+plan original (D-11, D-12, D-14, D-16) seguían abiertas y se marcaban «no solicitada» — no se
+tocó ningún archivo de P6/P7 salvo el efecto colateral de la corrección de `propulsion.h`
+(D-24), que es un header compartido y no cambia el comportamiento correcto de P6 (lo corrige).
+En la **verificación mayor** posterior (§0) se recrearon también los manuales `p6.tex`/`p7.tex`
+(sin tocar su firmware) y se corrigieron D-26/D-27/D-28, que afectan a las 8 prácticas C++ por
+igual.
 
-🔴 contradicción documental · 🟠 divergencia funcional · 🟡 menor / cosmético
+🔴 contradicción documental / bug de compilación · 🟠 divergencia funcional · 🟡 menor / cosmético
 
 ## 4-bis. Cambios aplicados en la Fase 1
 
@@ -321,3 +331,102 @@ cd docs/manuales && make          # -> build/p4.pdf (13 pág.), build/p5.pdf (12
 | `py_compile` de todo `MicroPython/**/*.py` (salvo D-23) | **OK**, incluye `lib/esc.py`, `lib/quad_mixer.py` en P8 |
 | `g++ -fsyntax-only` de `p4.cpp`…`p8.cpp` (ESP32 y RP2040) + `esc.h`/`quad_mixer.h`/`siglab.h` | **OK** para p4–p6 y p8 (ambas arquitecturas); p7 no se re-verificó (fuera de alcance, stub de `String` incompleto, no relacionado con el código de p7) |
 | Regresión de `propulsion.h` sobre `p6.cpp` | **OK** (compila; corrige el comportamiento, D-24) |
+
+---
+
+## 6. Verificación mayor (2026-09-17)
+
+A petición del usuario, antes de continuar con más manuales se hizo una pasada de
+verificación de fondo sobre **las 8 prácticas**, con foco en tres cosas que no se habían
+hecho hasta ahora: (a) compilar el C++ con el **PlatformIO real** (no solo un *stub* de
+`g++`), incluyendo por primera vez una compilación real del entorno `pico` (RP2040);
+(b) confirmar que cada práctica tiene las **herramientas** necesarias para
+ejecutarse, y (c) añadir a los manuales P4–P8 una sección de **alternativa de trabajo en
+casa** (multímetro + simulación) para cuando no hay osciloscopio/generador de banco.
+Al final de la pasada, **las 8 prácticas compilan limpio en ambas arquitecturas**
+(`esp32dev` y `pico`) y **los 5 manuales P4–P8 compilan sin errores ni referencias
+indefinidas** (ver §6.2 y §6.5).
+
+### 6.1 Firmware — py_compile (MicroPython, las 8 prácticas)
+`find MicroPython -name '*.py' ! -path '*/P2/tools/live_plot.py' -exec python -m
+py_compile {} +` → **OK** en las 4 combinaciones (ESP32/RP2040 × P1–P8). Único archivo
+excluido: D-23 (roto de origen, fuera del alcance de esta pasada).
+
+### 6.2 C++ — compilación real con PlatformIO (novedad de esta pasada)
+Se instaló PlatformIO Core 6.2.0 en un entorno virtual y se compilaron **las 8
+prácticas**, ambas variantes de *stepper* (A4988/ULN2003) donde aplica, en **ambos
+entornos** (`esp32dev`, `pico`). Esto reveló **6 bugs de compilación reales que el
+*stub* de `g++` no detectaba** (D-26 a D-31 — ver §3), presentes desde que se creó
+el proyecto C++ unificado: **el código C++ nunca se había compilado de verdad con
+PlatformIO**, y menos aún para RP2040 (el entorno `pico` nunca se había construido ni
+una sola vez antes de esta sesión). Tres bugs (D-26/27/28) afectaban a `esp32dev` y
+`pico` por igual; los otros tres (D-29/30/31) eran **específicos de RP2040**: el core
+por defecto que PlatformIO resuelve para `platform = raspberrypi` + `board = pico`
+(Arduino-mbed oficial) no es el que el firmware asume (earlephilhower/arduino-pico) —
+le faltan `Stream::printf` y `analogWriteFreq/Range`, y su `Wire.begin()` no acepta
+pines. Fijar `board_build.core = earlephilhower` en `platformio.ini` resuelve la
+causa raíz de D-30 (y habría evitado D-29 también, aunque el *helper* `serialPrintf`
+portátil se mantiene por ser más robusto frente a futuros cambios de core). Tras
+corregir los seis:
+
+| Práctica | esp32dev | pico (RP2040) | Variante adicional |
+|---|:--:|:--:|---|
+| P1 | ✅ | ✅ | — |
+| P2 | ✅ | ✅ | — |
+| P3 | ✅ | ✅ | — |
+| P4 | ✅ | ✅ | — |
+| P5 | ✅ | ✅ | — |
+| P6 | ✅ | ✅ | — |
+| P7 | ✅ | ✅ | ✅ `-DSTEPPER_ULN2003` (esp32dev y pico) |
+| P8 | ✅ | ✅ | — |
+
+Las 8 prácticas compilan sin error ni advertencia de compilación (más allá de los
+`warning: "PRACTICE" redefined` cosméticos que emite `PLATFORMIO_BUILD_FLAGS` al
+duplicar el `-DPRACTICE` del `.ini`, inocuos) en ambas arquitecturas. `pico` bajó de
+~700 s (con el core mbed, que reconstruye el framework RP2040 completo) a ~3 s por
+práctica (con earlephilhower, usando caché de compilación incremental).
+
+**Cómo se reprodujo** (no requiere instalar PlatformIO globalmente):
+```bash
+python3 -m venv .venv-pio && .venv-pio/bin/pip install platformio
+cd C++/SISELA-CPP
+.venv-pio/bin/pio run -e esp32dev                              # PRACTICE=1 (default del .ini)
+PLATFORMIO_BUILD_FLAGS="-DPRACTICE=4" .venv-pio/bin/pio run -e esp32dev   # cualquier práctica N
+PLATFORMIO_BUILD_FLAGS="-DPRACTICE=4" .venv-pio/bin/pio run -e pico      # ídem para RP2040
+PLATFORMIO_BUILD_FLAGS="-DPRACTICE=7 -DSTEPPER_ULN2003" .venv-pio/bin/pio run -e pico  # variante ULN2003
+```
+
+### 6.3 Herramientas por práctica
+Revisión de `MicroPython/{ESP32,RP2040}/P*/tools/`: P4, P5 (ambas plataformas) y, de
+forma transversal, `tools/sisela_signal/` cubren las necesidades de P4–P8. P1, P3, P6,
+P7 y P8 no tienen una carpeta `tools/` local — no es un defecto: no dependen de un
+*preset* de PC para ejecutarse (P1/P3/P6/P7 se verifican con multímetro/osciloscopio
+directamente; P8 usa `tools/sisela_signal` igual que P4/P5). Único hueco real: D-23
+(script roto en P2, ya documentado).
+
+### 6.4 Alternativa de trabajo en casa (nueva sección en los manuales P4–P8)
+Se añadió una sección **«Alternativa de Trabajo en Casa (Multímetro + Simulación)»** a
+`p4.tex`–`p8.tex`, con tres bloques por práctica: qué se puede verificar con multímetro
+(voltaje promedio de PWM, continuidad, resistencia, modo Hz/Duty% si el equipo lo tiene),
+qué se puede verificar con simulación (NI Multisim/Proteus/Wokwi — incluida la
+posibilidad de simular fallas peligrosas, como quitar el diodo *flyback*, que nunca deben
+probarse en hardware real), y qué **requiere** laboratorio presencial de forma honesta
+(el *jitter* de PWM en nanosegundos y el *aliasing* con generador real no tienen
+sustituto de multímetro/simulación idealizada). Cada sección cierra con una tabla
+resumen por caso/modo.
+
+### 6.5 Manuales — recompilación completa
+Los 5 manuales (`p4.tex`–`p8.tex`) se recompilaron desde cero tras los cambios:
+
+| Manual | Páginas | Advertencias |
+|---|:--:|---|
+| p4.pdf | 13 | ninguna |
+| p5.pdf | 12 | 1 *underfull hbox* (cosmético, celda de tabla angosta) |
+| p6.pdf | 15 | ninguna |
+| p7.pdf | 16 | 2 *underfull hbox* (cosmético, celdas de tabla angostas) |
+| p8.pdf | 15 | ninguna |
+
+Sin referencias indefinidas en ningún manual. `p6.tex` y `p7.tex` son recreaciones
+completas de los manuales originales (firmware sin cambios) **más** la nueva sección de
+trabajo en casa; `p8.tex` añade además las secciones de Análisis de Señales y del
+módulo opcional de dron ya implementadas en el firmware (Fase 2).

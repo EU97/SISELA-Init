@@ -1,0 +1,819 @@
+\documentclass[11pt]{article}
+\input{preamble}
+\renewcommand{\practnum}{6}
+\renewcommand{\practtitle}{Control de Actuadores II: Conmutación de Potencia con BJT\\
+Interfaces de Alta Corriente — Énfasis Aeronáutico}
+
+\begin{document}
+\portada
+
+\begin{resumen}
+Esta sesión se enfoca en el control de dispositivos que demandan mucha más potencia de
+la que un microcontrolador puede entregar directamente: motores, solenoides, luces de
+alta intensidad. El transistor de unión bipolar (BJT), actuando como interruptor
+electrónico, permite que una señal de baja potencia del GPIO controle el flujo de una
+corriente mucho mayor hacia la carga. La práctica cubre tres casos de estudio
+progresivos: conmutación de un \emph{buzzer} con el 2N2222A (señal), control de un motor
+DC de 12\,V con el TIP31C mediante un driver NPN (\emph{low-side}), y conmutación
+\emph{high-side} con el TIP32C. Para cada caso se presentan los cálculos de diseño
+detallados, se verifica mediante simulación en Multisim y se implementa
+experimentalmente con firmware MicroPython y C++.
+\end{resumen}
+
+\tableofcontents
+\newpage
+
+% ============================================================================
+\section{Introducción}
+
+Los microcontroladores (MCUs) como el ESP32 y el RP2040 son el cerebro de los sistemas
+embebidos aeronáuticos, operando con voltajes y corrientes bajos (típicamente 3.3\,V y
+algunos miliamperios por pin GPIO). Sin embargo, el mundo real — especialmente en
+aplicaciones aeronáuticas — requiere controlar dispositivos que demandan mucha más
+potencia: motores para bombas de combustible o ventilación, solenoides para válvulas
+hidráulicas o neumáticas, luces de indicación o iluminación de alta intensidad, y
+mecanismos de actuación. Aquí es donde los \textbf{transistores}, actuando como
+\textbf{interruptores electrónicos}, se vuelven indispensables. Permiten que una señal
+de baja potencia del MCU controle el flujo de una corriente mucho mayor hacia la carga.
+
+En la Práctica 5 se introdujo el control de posición con servomotores, donde el PWM
+codificaba un ángulo. En esta práctica se da el siguiente paso: utilizar PWM para regular
+la \textbf{potencia entregada} a cargas de mayor demanda energética. El transistor de
+unión bipolar (BJT) opera como un interruptor controlado por corriente: una pequeña
+corriente de base (proveniente del GPIO a través de una resistencia calculada) permite o
+impide el paso de una corriente de colector mucho mayor hacia la carga.
+
+El diseño riguroso de estas interfaces de potencia es un aspecto crucial en los sistemas
+electrónicos aeronáuticos. Un transistor que no alcanza la saturación disipará calor
+excesivo, reduciendo la fiabilidad; la ausencia de protección contra transitorios
+inductivos puede destruir el silicio; y una selección inadecuada del esquema de
+conmutación (\emph{low-side} vs \emph{high-side}) puede comprometer la seguridad ante
+fallas de aislamiento.
+
+Esta práctica cubre tres casos de estudio progresivos: conmutación de un \emph{buzzer}
+con el 2N2222A (señal), control de un motor DC de 12\,V con el TIP31C mediante un driver
+NPN, y conmutación \emph{high-side} con el TIP32C. Para cada caso se presentan los
+cálculos de diseño detallados, se verificará mediante simulación en Multisim y se
+implementará experimentalmente con firmware MicroPython y C++.
+
+% ============================================================================
+\section{Objetivos de Aprendizaje}
+\begin{enumerate}
+  \item Explicar el funcionamiento del BJT como interruptor: regiones de corte y
+        saturación, y los parámetros clave del \emph{datasheet}
+        ($h_{FE}$, $V_{BE(\text{sat})}$, $P_{D,\max}$, $R_{\theta JA}$).
+  \item Diseñar circuitos de conmutación BJT seleccionando el transistor adecuado
+        (NPN/PNP, señal/potencia) y la configuración (\emph{low-side}/\emph{high-side})
+        según la carga y la tensión de alimentación.
+  \item Calcular la corriente de base de diseño aplicando un factor de sobre-excitación
+        (\emph{overdrive factor}, ODF) para asegurar la saturación:
+        $I_{B,\text{design}} = (I_C/h_{FE,\min})\times\text{ODF}$.
+  \item Determinar el valor y la potencia de las resistencias de base ($R_B$) para el
+        transistor de potencia y su driver, verificando que no se excedan las
+        especificaciones nominales.
+  \item Analizar la disipación de potencia en el transistor
+        ($P_D = V_{CE(\text{sat})}\times I_C$) y evaluar la necesidad de disipador
+        consultando $R_{\theta JA}$ y $T_{J,\max}$ del \emph{datasheet}.
+  \item Seleccionar e implementar el diodo de protección (\emph{flyback}) para cargas
+        inductivas, considerando $I_{F(\text{AV})}\ge I_\text{carga}$ y
+        $V_{RRM} > V_{CC}$.
+  \item Diseñar la etapa de \emph{driver} NPN para controlar un transistor PNP de
+        potencia desde un MCU de 3.3\,V, incluyendo los cálculos de la resistencia de
+        base del PNP.
+  \item Simular los circuitos en Multisim y verificar corrientes ($I_C$, $I_B$),
+        voltajes ($V_{CE}$, $V_{BE}$) y la operación del diodo \emph{flyback} mediante
+        análisis transitorio.
+  \item Implementar y verificar experimentalmente montando los circuitos, midiendo
+        $V_{CE(\text{sat})}$ y controlando la carga con firmware de 4 modos
+        (on/off, PWM manual, barrido, potenciómetro).
+  \item Contextualizar las interfaces de potencia en aplicaciones aeronáuticas: control
+        de luces, bombas, solenoides, comandos discretos ARINC 429 y prácticas de
+        conexión a tierra (\emph{grounding}).
+\end{enumerate}
+
+% ============================================================================
+\section{Fundamentos Teóricos}
+
+\subsection{El transistor BJT como interruptor}
+En sistemas de aeronaves, el microcontrolador no puede energizar directamente una bomba
+de combustible o un solenoide de tren de aterrizaje, ya que estas cargas requieren
+corrientes de cientos de miliamperios o amperios. El transistor BJT se utiliza como
+interruptor electrónico operando en dos regiones:
+\begin{itemize}
+  \item \textbf{Corte}: $I_B=0 \Rightarrow$ el transistor es un circuito abierto
+        ($I_C\approx 0$, $V_{CE}\approx V_{CC}$).
+  \item \textbf{Saturación}: $I_B > I_C/h_{FE,\min} \Rightarrow$ el transistor es un
+        interruptor cerrado ($V_{CE(\text{sat})}$ mínima, típicamente
+        \SIrange{0.2}{1.4}{\volt} según el dispositivo).
+\end{itemize}
+La región activa (amplificación lineal) \textbf{debe evitarse} en conmutación, ya que el
+transistor disipa potencia excesiva ($P=V_{CE}\times I_C$, con $V_{CE}$ intermedio).
+
+\begin{nota}[Región activa vs saturación]
+En amplificación, se busca la región activa. En conmutación de potencia, se busca pasar
+rápidamente de corte a saturación y viceversa, minimizando el tiempo en la región lineal
+para reducir pérdidas de conmutación.
+\end{nota}
+
+\subsubsection{Factor de sobre-excitación (\emph{Overdrive Factor}, ODF)}
+Para garantizar que el transistor permanezca en saturación bajo todas las condiciones
+(temperatura, tolerancias, degradación), se diseña la corriente de base con un margen de
+seguridad:
+\begin{align}
+  I_{B,\min} &= \frac{I_C}{h_{FE,\min}}, \\
+  I_{B,\text{design}} &= I_{B,\min}\times\text{ODF}.
+\end{align}
+Valores típicos de ODF: 2--5 para transistores de señal, 3--10 para transistores de
+potencia (donde $h_{FE}$ es bajo y variable con la temperatura).
+
+\begin{table}[H]\centering
+\caption{Parámetros críticos del \emph{datasheet} para diseño de conmutación.}
+\begin{tabular}{ll}
+\toprule
+Parámetro & Descripción \\
+\midrule
+$h_{FE,\min}$ & Ganancia de corriente DC en saturación (varía con $I_C$ y $T$) \\
+$V_{BE(\text{sat})}$ & Caída base--emisor en saturación (0.7--1.8\,V según $I_C$) \\
+$V_{CE(\text{sat})}$ & Caída colector--emisor en saturación (0.2--1.4\,V) \\
+$I_{C,\max}$ & Corriente de colector continua máxima \\
+$P_{D,\max}$ & Disipación máxima sin disipador (a 25\si{\celsius}) \\
+$V_{CEO}$ & Máximo voltaje C--E con base abierta \\
+$R_{\theta JA}$ & Resistencia térmica juntura--ambiente (\si{\celsius\per\watt}) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Cálculo de la resistencia de base ($R_B$)}
+La resistencia de base limita la corriente de base al valor de diseño:
+\begin{equation}
+  R_B = \frac{V_{OH} - V_{BE(\text{sat})}}{I_{B,\text{design}}},
+\end{equation}
+donde $V_{OH}$ es el voltaje de salida alto del GPIO (3.3\,V para ESP32/RP2040). La
+potencia disipada en $R_B$ es
+\begin{equation}
+  P_{R_B} = I_{B,\text{design}}^2\times R_B = (V_{OH}-V_{BE(\text{sat})})\times I_{B,\text{design}}.
+\end{equation}
+
+\subsection{Configuración \emph{low-side} (NPN)}
+En la configuración \emph{low-side}, el transistor NPN se sitúa entre la carga y tierra.
+La carga se conecta desde la fuente de alimentación ($V_{CC,\text{Load}}$) al colector
+del transistor.
+
+\begin{figure}[H]\centering
+\begin{tikzpicture}[node distance=1.1cm]
+  \node[term] (vcc) {$+V_{CC}$};
+  \node[block, below=1.4cm of vcc, xshift=-1.6cm] (load) {Carga};
+  \node[block, below=1.4cm of vcc, xshift=1.6cm] (fb) {\emph{Flyback}};
+  \node[block, below=2.6cm of load] (npn) {NPN};
+  \node[term, left=1.8cm of npn] (gpio) {GPIO};
+  \node[term, below=1.2cm of npn] (gnd) {GND};
+  \draw[flow] (vcc) -| (load); \draw[flow] (vcc) -| (fb);
+  \draw[flow] (load) -- (npn); \draw[flow] (fb) -- (npn);
+  \draw[flow] (gpio) -- node[above,font=\scriptsize]{$R_B$} (npn);
+  \draw[flow] (npn) -- (gnd);
+\end{tikzpicture}
+\caption{Configuración \emph{low-side} con transistor NPN y diodo \emph{flyback}.}
+\end{figure}
+
+\textbf{Operación}: GPIO HIGH $\Rightarrow I_B$ fluye $\Rightarrow$ NPN satura
+$\Rightarrow$ corriente fluye por la carga. GPIO LOW $\Rightarrow I_B=0
+\Rightarrow$ NPN en corte $\Rightarrow$ carga apagada.
+
+\subsection{Configuración \emph{high-side} (PNP con driver NPN)}
+En aplicaciones aeronáuticas se prefiere la conmutación \emph{high-side} (cortar la línea
+positiva) porque si un cable de señal toca accidentalmente la estructura metálica del
+avión (tierra), la carga \textbf{no} se energiza de forma involuntaria. Para controlar un
+PNP de potencia desde un MCU de 3.3\,V que conmuta una carga de 12\,V, se requiere un
+transistor NPN como \emph{driver} de nivel.
+
+\textbf{Operación}: GPIO HIGH $\Rightarrow$ Q1 (driver NPN) satura $\Rightarrow$ la base
+de Q2 (PNP) se lleva a $\sim V_{CE(\text{sat}),Q1} \Rightarrow$ Q2 satura $\Rightarrow$
+carga ON. GPIO LOW $\Rightarrow$ Q1 en corte $\Rightarrow$ base de Q2 sin camino a
+tierra $\Rightarrow$ Q2 en corte $\Rightarrow$ carga OFF.
+
+\subsection{Diodo de protección (\emph{Flyback})}
+Las cargas inductivas (motores, solenoides, relés, bobinas) almacenan energía en su campo
+magnético. Al apagar el transistor abruptamente, la corriente que circulaba por la
+inductancia intenta mantenerse según la ley de Lenz, generando un pico de voltaje inverso
+que puede alcanzar cientos de volts y destruir el transistor. El diodo \emph{flyback} se
+coloca en paralelo con la carga (cátodo al positivo de la alimentación, ánodo al colector
+del NPN) para proporcionar un camino de recirculación para la corriente inductiva.
+
+\begin{table}[H]\centering
+\caption{Criterios de selección del diodo \emph{flyback}.}
+\begin{tabular}{lll}
+\toprule
+Parámetro & Criterio & Observación \\
+\midrule
+$I_{F(\text{AV})}$ & $\ge I_\text{carga}$ & Corriente directa promedio \\
+$V_{RRM}$ & $> V_{CC,\text{Load}}$ & Voltaje inverso repetitivo máximo \\
+$t_{rr}$ & Lo más bajo posible & Schottky preferidos ($t_{rr}\approx 0$) \\
+Tipo & 1N5817--1N5819 (Schottky) & $V_F$ bajo (0.3\,V vs 0.7\,V), recuperación rápida \\
+     & 1N4001--1N4007 (rectificador) & Económico, $V_{RRM}$ alto, $t_{rr}$ más lento \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Disipación de potencia y gestión térmica}
+Un transistor en saturación no es un conductor perfecto: la caída $V_{CE(\text{sat})}$
+genera pérdidas:
+\begin{equation}
+  P_D = V_{CE(\text{sat})}\times I_C.
+\end{equation}
+La temperatura de la juntura se estima como
+\begin{equation}
+  T_J = T_A + P_D\times R_{\theta JA}.
+\end{equation}
+Si $T_J > T_{J,\max}$ (típicamente \SI{150}{\celsius}), se requiere un disipador de calor
+(\emph{heatsink}) que reduce la resistencia térmica efectiva.
+
+\begin{nota}[Entorno aeronáutico]
+En aviónica, la temperatura ambiente dentro de un \emph{bay} de equipos puede alcanzar
+\SIrange{55}{70}{\celsius}. El diseño de gestión térmica debe considerar este margen
+reducido, además de restricciones de espacio, peso y vibración para la sujeción del
+disipador.
+\end{nota}
+
+\subsection{Control discreto vía ARINC 429}
+La activación de bombas, luces o solenoides en aeronaves modernas se comanda mediante
+palabras ARINC 429 de tipo \textbf{discreto}. A diferencia del formato BNR (datos
+continuos como la altitud o el ángulo de alerón), las palabras discretas asignan bits
+específicos del campo de datos (bits 11--29) a estados ON/OFF de sistemas individuales.
+
+\begin{table}[H]\centering
+\caption{Estructura de una palabra ARINC 429 discreta (ejemplo Label 270).}
+\begin{tabular}{llll}
+\toprule
+Bits & Campo & Contenido & Ejemplo \\
+\midrule
+1--8 & Label & 270 (octal, invertido) & 10111000 \\
+9--10 & SDI & Source ID & 00 \\
+11 & Bit 11 & Bomba combustible aux.\ (1 = ON) & \\
+12 & Bit 12 & \emph{Master Caution} (1 = Activar) & \\
+13--29 & Bits 13--29 & Otros discretos & --- \\
+29--30 & SSM & Status (00 = Normal) & 00 \\
+31 & P & Paridad impar & Calculada \\
+\bottomrule
+\end{tabular}
+\end{table}
+El sistema de potencia debe validar la paridad y el SSM antes de actuar sobre los
+transistores de salida, evitando activaciones espurias por ruido en el bus.
+
+% ============================================================================
+\section{Consideraciones de Seguridad y Buenas Prácticas}
+\begin{enumerate}
+  \item \textbf{Transitorios inductivos}: las bobinas de motores y solenoides almacenan
+        energía magnética. Al apagar el transistor, esta energía genera un arco de
+        voltaje inverso que puede destruir el silicio. El uso de diodos \emph{flyback}
+        es \textbf{obligatorio} para cargas inductivas.
+  \item \textbf{Disipación de calor}: verificar siempre que $T_J < T_{J,\max}$
+        (ecuación 6). Si se excede, instalar disipador. Monitorizar la temperatura del
+        encapsulado durante las pruebas.
+  \item \textbf{Tierra común (GND)}: la tierra del MCU y la tierra de la fuente de
+        potencia \textbf{deben estar conectadas}. Sin GND común, la referencia de
+        voltaje del GPIO es indefinida respecto a la base del transistor.
+  \item \textbf{Aislamiento de buses}: mantener el bus de 12\,V de potencia físicamente
+        separado de las líneas de 3.3\,V de datos para evitar ruidos de conmutación en
+        el ADC.
+  \item \textbf{No alimentar cargas desde 3V3}: el regulador 3.3\,V del MCU tiene límite
+        de corriente ($\sim$\SI{500}{\milli\ampere}). Usar siempre fuente externa para
+        la carga.
+  \item \textbf{Polaridad de los transistores}: verificar configuración de pines (B, C,
+        E) según el encapsulado (TO-92 para 2N2222A, TO-220 para TIP31C/TIP32C). Una
+        conexión invertida puede destruir el dispositivo.
+\end{enumerate}
+
+% ============================================================================
+\section{Equipo y Materiales}
+\begin{table}[H]\centering
+\caption{Lista de componentes para la práctica.}
+\begin{tabular}{cll l}
+\toprule
+Cant.\ & Componente & Especificación & Uso \\
+\midrule
+1 & Microcontrolador & ESP32 DevKit / RP2040 & Control GPIO/PWM \\
+1 & Cable USB & Micro-B / USB-C & Programación y alimentación \\
+1 & Protoboard & 830 puntos & Prototipado \\
+--- & Alambre AWG 22 & Varios colores & Conexiones \\
+1 & 2N2222A & NPN, TO-92 & Señal (buzzer) / \emph{Driver} \\
+1 & TIP31C & NPN potencia, TO-220 & Motor DC (\emph{low-side}) \\
+1 & TIP32C & PNP potencia, TO-220 & Motor DC (\emph{high-side}) \\
+1 & Buzzer & 5\,V, 20\,mA & Carga Caso 1 \\
+1 & Motor DC & 12\,V, 0.5\,A nom. / 1.5\,A \emph{stall} & Cargas Casos 2--3 \\
+--- & Resistencias & Varios valores, 1/4\,W y 5\,W & $R_B$ y $R_\text{pullup}$ \\
+1 & 1N4001 (o 1N4007) & Rectificador & \emph{Flyback} (buzzer) \\
+1 & 1N5817 (o 1N5819) & Schottky & \emph{Flyback} (motor) \\
+1 & Condensador & \SI{100}{\micro\farad} / \SI{16}{\volt} & Desacoplo fuente \\
+1 & Disipador TO-220 & Opcional & TIP31C / TIP32C \\
+1 & Potenciómetro & \SI{10}{\kilo\ohm} & Modo 4 (ADC) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Equipo de laboratorio.} Laptop con IDE (Thonny/VS Code + Pymakr) y monitor
+serie; fuente de alimentación DC variable/dual (3.3\,V, 5\,V, 12\,V con $\ge$\,2\,A);
+multímetro digital (DMM) para medir $V_{CE(\text{sat})}$, $I_B$, $I_C$; osciloscopio
+(recomendado) para verificar PWM y transitorios; software de simulación (NI Multisim o
+equivalente).
+
+% ============================================================================
+\section{Etapa de Diseño}
+
+\subsection{Caso de estudio 1: buzzer con 2N2222A (\emph{low-side})}
+Conmutar un buzzer de 3.3\,V / 20\,mA usando un transistor NPN de señal (2N2222A) en
+configuración \emph{low-side}. El circuito funciona como \textbf{anunciador acústico de
+\emph{warning}} (alerta de sobretemperatura o tren de aterrizaje).
+
+Datos: $I_C=\SI{20}{\milli\ampere}$; \emph{datasheet} 2N2222A: $h_{FE,\min}=50$,
+$V_{BE(\text{sat}),\max}=\SI{1.0}{\volt}$, $V_{CE(\text{sat})}\approx\SI{0.2}{\volt}$.
+\begin{align}
+  I_{B,\min} &= \frac{I_C}{h_{FE,\min}} = \frac{0.020}{50} = \SI{0.4}{\milli\ampere}, \\
+  I_{B,\text{design}} &= I_{B,\min}\times\text{ODF} = 0.4\times 5 = \SI{2.0}{\milli\ampere}
+        \quad (\text{ODF}=5), \\
+  R_B &= \frac{V_{OH}-V_{BE(\text{sat})}}{I_{B,\text{design}}} = \frac{3.3-1.0}{0.002}
+        = \SI{1150}{\ohm}.
+\end{align}
+Valor estándar: $R_B=\SI{1.2}{\kilo\ohm}$. Potencia disipada en el transistor:
+$P_D = V_{CE(\text{sat})}\times I_C = 0.2\times 0.020 = \SI{4}{\milli\watt}$.
+\textbf{No requiere disipador} ($P_{D,\max,\text{2N2222A}}=\SI{625}{\milli\watt}$).
+
+\subsection{Caso de estudio 2: motor DC 12\,V con TIP31C (\emph{low-side})}
+Conmutar un motor DC de 12\,V (1.5\,A en \emph{stall}) usando el TIP31C como transistor
+de potencia, con el 2N2222A como \emph{driver} inversor. Simula el control de una
+\textbf{bomba auxiliar de combustible}. El TIP31C tiene $h_{FE,\min}=10$ a
+$I_C=\SI{1.5}{\ampere}$, lo que requiere $I_B\approx$ \SIrange{150}{450}{\milli\ampere}.
+Un GPIO de 3.3\,V no puede suministrar esta corriente directamente, por lo que se utiliza
+una etapa de \emph{driver} con \emph{pull-up} a 12\,V.
+
+\begin{nota}[Lógica invertida]
+En esta configuración la lógica está invertida: GPIO HIGH $\Rightarrow$ Q1 ON
+$\Rightarrow$ base de Q2 baja $\Rightarrow$ Q2 OFF $\Rightarrow$ motor apagado. GPIO LOW
+$\Rightarrow$ Q1 OFF $\Rightarrow$ $R_\text{PU}$ suministra $I_B$ a Q2 $\Rightarrow$ Q2 ON
+$\Rightarrow$ motor encendido. El firmware debe invertir la lógica en software.
+\end{nota}
+
+\textbf{Cálculos para TIP31C (Q2)}: $I_{C,Q2}=I_\text{load,max}=\SI{1.5}{\ampere}$
+(\emph{stall}); $h_{FE,\min,Q2}=10$, $V_{BE(\text{sat}),Q2,\max}=\SI{1.8}{\volt}$,
+$V_{CE(\text{sat}),Q2,\max}=\SI{1.4}{\volt}$.
+\begin{align}
+  I_{B,Q2,\min} &= \frac{1.5}{10} = \SI{150}{\milli\ampere}, &
+  I_{B,Q2,\text{design}} &= 150\times 3 = \SI{450}{\milli\ampere}\ (\text{ODF}=3).
+\end{align}
+
+\textbf{Resistencia de \emph{pull-up} $R_\text{PU}$} (suministra $I_{B,Q2}$ cuando Q1 está
+OFF):
+\begin{equation}
+  R_\text{PU} = \frac{V_{CC}-V_{BE(\text{sat}),Q2}}{I_{B,Q2,\text{design}}}
+              = \frac{12-1.8}{0.45} = \SI{22.67}{\ohm}\approx\SI{22}{\ohm}.
+\end{equation}
+Potencia: $P_{R_\text{PU}} = I_{B,Q2}^2\times R_\text{PU} = 0.45^2\times 22 = \SI{4.46}{\watt}$
+— se requiere resistencia de potencia $\ge\SI{5}{\watt}$.
+
+\textbf{Cálculos para 2N2222A (Q1, \emph{driver})}: cuando Q1 está ON, desvía la
+corriente de $R_\text{PU}$: $I_{C,Q1} = (V_{CC}-V_{CE(\text{sat}),Q1})/R_\text{PU} =
+(12-0.3)/22 = \SI{532}{\milli\ampere}$ (aceptable, $I_{C,\max}\approx$
+\SIrange{600}{800}{\milli\ampere}). Con $h_{FE,\min,Q1}\approx 35$ a
+$I_C=\SI{532}{\milli\ampere}$: $I_{B,Q1,\min}=532/35=\SI{15.2}{\milli\ampere}$,
+$I_{B,Q1,\text{design}}=15.2\times 1.5=\SI{22.8}{\milli\ampere}$ (ODF=1.5).
+\begin{equation}
+  R_{B1} = \frac{3.3-1.2}{0.0228} = \SI{92.1}{\ohm}\approx\SI{100}{\ohm}.
+\end{equation}
+
+\textbf{Análisis térmico de TIP31C (Q2)}:
+$P_{D,Q2}=V_{CE(\text{sat}),Q2}\times I_{C,Q2}=1.4\times 1.5=\SI{2.1}{\watt}$;
+$T_J=T_A+P_D\times R_{\theta JA}=25+2.1\times 62.5=\SI{156}{\celsius} >
+T_{J,\max}=\SI{150}{\celsius} \Rightarrow$ \textbf{se requiere disipador}. Con
+$R_{\theta HA}=\SI{15}{\celsius\per\watt}$:
+$T_J=25+2.1\times(1+0.5+15)=\SI{59.7}{\celsius}$ \checkmark.
+
+\subsection{Caso de estudio 3: motor DC 12\,V con TIP32C (\emph{high-side})}
+Conmutar el mismo motor DC de 12\,V con conmutación \emph{high-side} usando el TIP32C
+(PNP potencia) controlado por el 2N2222A (\emph{driver} NPN). Esta configuración es la
+preferida en aeronáutica por las razones de seguridad descritas en la \S3.4.
+
+\textbf{Cálculos para TIP32C (Q2)}: $I_{C,Q2}=\SI{1.5}{\ampere}$, $h_{FE,\min,Q2}=10$,
+$|V_{EB(\text{sat}),Q2,\max}|=\SI{1.8}{\volt}$, $|V_{EC(\text{sat}),Q2,\max}|=\SI{1.4}{\volt}$.
+\begin{align}
+  I_{B,Q2,\min} &= \frac{1.5}{10} = \SI{150}{\milli\ampere}, &
+  I_{B,Q2,\text{design}} &= 150\times 2 = \SI{300}{\milli\ampere}\ (\text{ODF}=2).
+\end{align}
+\textbf{Cálculos para 2N2222A (Q1, \emph{driver})}: cuando Q1 está ON, debe hundir
+(\emph{sink}) $I_{C,Q1}=I_{B,Q2,\text{design}}=\SI{300}{\milli\ampere}$; con
+$h_{FE,\min,Q1}\approx 35$: $I_{B,Q1,\min}=300/35=\SI{8.6}{\milli\ampere}$,
+$I_{B,Q1,\text{design}}=8.6\times 1.5=\SI{12.9}{\milli\ampere}$ (ODF=1.5).
+\begin{equation}
+  R_{B1} = \frac{3.3-1.0}{0.0129} = \SI{178}{\ohm}\approx\SI{180}{\ohm}.
+\end{equation}
+$R_{B2}$ (base de Q2, conecta el colector de Q1 a la base de Q2): cuando Q1 ON,
+$V_{C,Q1}=V_{CE(\text{sat}),Q1}\approx\SI{0.3}{\volt}$; la base de Q2 está a
+$V_{B,Q2}=V_{E,Q2}-|V_{EB(\text{sat})}|=12-1.8=\SI{10.2}{\volt}$:
+$V_{R_{B2}}=10.2-0.3=\SI{9.9}{\volt}$, $R_{B2}=9.9/0.3=\SI{33}{\ohm}$.
+Potencia en $R_{B2}$: $(0.3)^2\times 33=\SI{2.97}{\watt}\Rightarrow$ resistencia
+$\ge\SI{5}{\watt}$.
+
+\textbf{Análisis térmico}: TIP32C (Q2) — $P_D=|V_{EC(\text{sat})}|\times I_C=1.4\times
+1.5=\SI{2.1}{\watt}$, \textbf{requiere disipador} (mismo análisis que el Caso 2). 2N2222A
+(Q1) — $P_D=0.3\times 0.3=\SI{0.09}{\watt}$, OK sin disipador.
+
+\begin{table}[H]\centering
+\caption{Comparación de los tres casos de estudio.}
+\begin{tabular}{lccc}
+\toprule
+Parámetro & Caso 1 (Buzzer) & Caso 2 (Motor, \emph{low-side}) & Caso 3 (Motor, \emph{high-side}) \\
+\midrule
+Transistor de potencia & 2N2222A & TIP31C & TIP32C (PNP) \\
+\emph{Driver} & Directo (GPIO) & 2N2222A + $R_\text{PU}$ & 2N2222A + $R_{B2}$ \\
+$I_C$ (máx) & 20\,mA & 1.5\,A & 1.5\,A \\
+$R_B$ principal & 1.2\,k$\Omega$ (1/4\,W) & 22\,$\Omega$ (5\,W) & 33\,$\Omega$ (5\,W) \\
+$P_D$ transistor & 4\,mW & 2.1\,W & 2.1\,W \\
+Disipador & No & Sí & Sí \\
+Diodo \emph{flyback} & 1N4001 & 1N5819 & 1N5819 \\
+Lógica & Directa & Invertida & Directa \\
+Ventaja aeronáutica & Simplicidad & Alta corriente & Seguridad ante fallas \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Asignación de pines por plataforma}
+\begin{table}[H]\centering
+\caption{Asignación de pines según plataforma.}
+\begin{tabular}{llll}
+\toprule
+Señal & ESP32 & RP2040 & Descripción \\
+\midrule
+PWM / GPIO & GPIO18 & GP18 (PWM1A) & Señal a $R_B$ del transistor \\
+GND & GND & GND & Tierra común \\
+ADC (modo 4) & GPIO34 & GP26 (ADC0) & Potenciómetro \\
+VCC carga & Fuente ext.\ 12\,V & Fuente ext.\ 12\,V & Alimentación del motor \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{nota}[Frecuencia PWM]
+A diferencia de la P5 (servo a 50\,Hz), en esta práctica la frecuencia PWM es 1\,kHz
+(configurable). Valores típicos según la carga: LED/lámpara 100--1000\,Hz, motor DC
+500--2000\,Hz, electroválvula 50--200\,Hz.
+\end{nota}
+
+% ============================================================================
+\section{Procedimiento Experimental}
+
+\subsection{Paso 1: preparación del entorno}
+\begin{enumerate}
+  \item Instalar MicroPython en la placa (o configurar PlatformIO con
+        \code{PRACTICE=6}).
+  \item Verificar que todos los componentes estén disponibles.
+  \item Con la fuente apagada, montar el circuito del Caso 1 (buzzer + 2N2222A).
+  \item Verificar con multímetro: continuidad de GND común, polaridad correcta.
+  \item Sincronizar archivos del repositorio (\code{main.py}, \code{boot.py},
+        \code{lib/actuator\_pwm.py}).
+  \item Al reiniciar, debe aparecer: \code{=== Práctica 6 --- Conmutación PWM ===}.
+\end{enumerate}
+
+\subsection{Modos de operación del firmware}
+\begin{table}[H]\centering
+\caption{Modos de operación del firmware P6.}
+\begin{tabular}{cll}
+\toprule
+Modo & Nombre & Descripción \\
+\midrule
+1 & Encendido/Apagado & Alterna \emph{duty} 0\,\%/100\,\% cada segundo \\
+2 & PWM manual & Ingresa \emph{duty} (0--100) por terminal \\
+3 & Barrido automático & Rampa 0\,\%$\to$100\,\%$\to$0\,\% continua \\
+4 & Potenciómetro (ADC) & Lectura ADC mapea a \emph{duty} \\
+\bottomrule
+\end{tabular}
+\end{table}
+Tecla \code{m} $\to$ regresar al menú en cualquier modo.
+
+\subsection{Caso 1: anunciador acústico (\emph{Warning})}
+Ejecutar Modo 1. \textbf{Verificar}: el buzzer suena con \emph{duty} 100\,\% y se
+silencia con 0\,\%. Medir $V_{CE(\text{sat})}$ del 2N2222A (esperado $<\SI{0.3}{\volt}$).
+Si se dispone de osciloscopio, observar la señal PWM en la base del transistor.
+
+\subsection{Caso 2: bomba auxiliar (motor DC 12\,V, \emph{low-side})}
+Con la fuente apagada, montar el circuito del Caso 2. Usar resistencia de potencia
+($\ge\SI{5}{\watt}$) para $R_\text{PU}$. Instalar disipador en el TIP31C. Conectar GND
+del MCU al GND de la fuente de 12\,V. Ejecutar Modo 1 (recordar la lógica invertida).
+Verificar giro del motor; medir $V_{CE(\text{sat}),Q2}$ (esperado $<\SI{1.4}{\volt}$;
+ideal $<\SI{0.5}{\volt}$). Alternar con Modo 2: variar el \emph{duty} de 0 a 100\,\% y
+observar la velocidad del motor.
+
+\begin{nota}[Transitorio del diodo]
+Si se dispone de osciloscopio, capturar la forma de onda en el colector de Q2 al momento
+de apagar el motor (\emph{duty} pasa de 100\,\% a 0\,\%). Sin diodo \emph{flyback}, se
+observará un pico de voltaje que puede superar $V_{CEO}$ del TIP31C (100\,V). Con diodo,
+el pico se limita a $\sim V_{CC}+V_F\approx\SI{12.3}{\volt}$.
+\end{nota}
+
+\subsection{Caso 3: conmutación \emph{high-side} (TIP32C)}
+Reconfigurar al circuito del Caso 3. Usar resistencia de potencia ($\ge\SI{5}{\watt}$)
+para $R_{B2}$. Instalar disipador en el TIP32C. Verificar conexiones: emisor de Q2 a
++12\,V, colector de Q2 al motor, motor a GND. Ejecutar Modo 1: la lógica es
+\textbf{directa} en esta configuración (GPIO HIGH $\Rightarrow$ motor ON). Medir
+$|V_{EC(\text{sat}),Q2}|$ (esperado $<\SI{1.4}{\volt}$). Comparar cualitativamente la
+operación con el Caso 2.
+
+\subsection{Caso 4: control por palabra discreta (ARINC 429 simulado)}
+Este caso integra el control de potencia con un protocolo de aviónica. El firmware recibe
+una trama de 32 bits por serie (en hexadecimal) y actúa sobre los transistores según los
+bits discretos: valida la paridad impar, verifica el \emph{Label} (270 octal), extrae el
+bit 11 (bomba combustible) y el bit 12 (\emph{Master Caution}), y comanda los pines
+correspondientes.
+
+\begin{figure}[H]\centering
+\begin{tikzpicture}[node distance=1.0cm]
+  \node[term] (a) {Trama UART (hex)};
+  \node[block, below=of a] (b) {Validar paridad\\e integridad};
+  \node[decision, below=1.4cm of b] (c) {¿Bit 11\\== 1?};
+  \node[block, right=2.2cm of c] (d) {Desactivar\\transistor};
+  \node[block, below=1.4cm of c] (e) {Saturar transistor\\(bomba ON)};
+  \draw[flow] (a)--(b); \draw[flow] (b)--(c);
+  \draw[flow] (c) -- node[above,font=\scriptsize]{No} (d);
+  \draw[flow] (c) -- node[right,font=\scriptsize]{Sí} (e);
+\end{tikzpicture}
+\caption{Lógica de control de potencia mediante comandos discretos ARINC 429.}
+\end{figure}
+
+\subsection{Implementación C++ (PlatformIO)}
+El archivo \code{p6.cpp} implementa tres modos usando la clase \code{PropulsionSystem}
+(\code{common/propulsion.h}, API en porcentaje 0--100). Compilar con
+\code{pio run -e esp32dev} o \code{pio run -e pico} (con \code{-DPRACTICE=6}).
+
+% ============================================================================
+\section{Alternativa de Trabajo en Casa (Multímetro + Simulación)}
+\label{sec:casa}
+
+\paragraph{Con multímetro (en casa).} En modo DC, medir $V_{CE(\text{sat})}$ directamente
+entre colector y emisor mientras el transistor está saturado (Modo 1 sostenido en ON) —
+comparar contra los valores esperados de la Tabla de comparación. Insertar el multímetro
+en modo amperímetro (en serie, con precaución de rango) para medir $I_B$ e $I_C$ y
+verificar el cálculo de $R_B$. Usar el modo diodo del multímetro para comprobar la
+polaridad y el estado del diodo \emph{flyback} antes de energizar. Si el equipo tiene
+función Hz/Duty\,\%, verificar la frecuencia PWM (1\,kHz) sin osciloscopio.
+
+\paragraph{Con simulación.} Construir cada caso completo (transistor + carga + diodo) en
+NI Multisim/Proteus y correr un análisis transitorio: graficar $V_{CE}$, $I_C$, $I_B$ y
+la corriente del diodo. La simulación permite además \textbf{observar de forma segura} lo
+que ocurre \emph{sin} el diodo \emph{flyback} (pico de voltaje destructivo) — un
+experimento que \textbf{nunca} debe hacerse con el circuito físico real. Es la forma
+recomendada de estudiar la \S8.5 (nota de transitorio) cuando no se tiene acceso a un
+osciloscopio de banco.
+
+\paragraph{Requiere laboratorio presencial.} La forma de onda real del transitorio de
+apagado (con y sin diodo) en la escala de nanosegundos a microsegundos, y el ruido de
+conmutación real sobre el bus de 3.3\,V, solo pueden observarse con un osciloscopio
+físico — la simulación es idealizada y no reproduce parásitos reales de cableado.
+
+\begin{table}[H]\centering
+\caption{Alternativas de trabajo en casa por caso de estudio.}
+\begin{tabular}{lccc}
+\toprule
+Caso & Multímetro & Simulación & Requiere laboratorio \\
+\midrule
+1 (buzzer, señal) & Sí ($V_{CE(\text{sat})}$) & Sí & No \\
+2 (motor, \emph{low-side}) & Sí & Sí & Recomendado (disipador, transitorio) \\
+3 (motor, \emph{high-side}) & Sí & Sí & Recomendado (disipador, transitorio) \\
+4 (ARINC 429 discreto) & --- & Sí (lógica) & No \\
+Transitorio sin \emph{flyback} & No (peligroso) & \textbf{Sí, solo así} & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================================================
+\section{Herramientas de Verificación}
+\subsection{Verificación con osciloscopio}
+\begin{enumerate}
+  \item \textbf{Señal PWM en la base}: verificar frecuencia (1\,kHz), amplitud (3.3\,V)
+        y ciclo de trabajo.
+  \item $V_{CE(\text{sat})}$ \textbf{durante saturación}: conectar CH1 al colector, CH2 al
+        emisor. La diferencia debe ser $< V_{CE(\text{sat}),\max}$ del \emph{datasheet}.
+  \item \textbf{Transitorio al apagado}: capturar el voltaje en el colector en modo
+        \emph{single-shot} al pasar \emph{duty} de 100\,\% a 0\,\%. Con diodo
+        \emph{flyback}: limitado a $\sim V_{CC}+0.3$\,V. Sin diodo: pico potencialmente
+        destructivo ($>\SI{100}{\volt}$).
+  \item \textbf{Corriente de base}: medir voltaje a ambos lados de $R_B$ y calcular
+        $I_B=\Delta V/R_B$.
+\end{enumerate}
+
+% ============================================================================
+\section{Registro de Datos y Análisis}
+
+\subsection{Tabla de caracterización de los interruptores}
+\begin{table}[H]\centering
+\caption{Bitácora de caracterización de los interruptores electrónicos.}
+\begin{tabular}{lcccc}
+\toprule
+Carga / Caso & $V_\text{GPIO}$ (V) & $I_B$ (mA) & $I_C$ (mA) & $V_{CE(\text{sat})}$ (V) \\
+\midrule
+Buzzer (Caso 1) & 3.3 & & & \\
+Motor 12\,V (Caso 2) & 3.3 & & & \\
+Motor 12\,V (Caso 3) & 3.3 & & & \\
+Falla (sin \emph{flyback}) & 3.3 & & & Estado térmico: Crítico \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Tabla de verificación de cálculos}
+\begin{table}[H]\centering
+\caption{Comparación entre valores calculados y medidos.}
+\begin{tabular}{clccc}
+\toprule
+Caso & Parámetro & Calculado & Medido & Error (\%) \\
+\midrule
+1 & $I_B$ (mA) & 2.0 & & \\
+1 & $V_{CE(\text{sat})}$ (V) & $\le 0.2$ & & \\
+2 & $I_{B,Q2}$ (mA) & $\le 450$ & & \\
+2 & $V_{CE(\text{sat}),Q2}$ (V) & $\le 1.4$ & & \\
+2 & $P_{D,Q2}$ (W) & 2.1 & & \\
+3 & $I_{B,Q2}$ (mA) & $\le 300$ & & \\
+3 & $|V_{EC(\text{sat}),Q2}|$ (V) & $\le 1.4$ & & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Tabla de transitorios (osciloscopio)}
+\begin{table}[H]\centering
+\caption{Voltaje pico en el colector al apagar la carga.}
+\begin{tabular}{ll}
+\toprule
+Condición & $V_\text{pico}$ (V) \\
+\midrule
+Con diodo \emph{flyback} & Esperado: $\sim 12.3$ \\
+Sin diodo \emph{flyback} & Esperado: $> 50$ (solo en simulación, \S9) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Gráficas requeridas}
+\begin{enumerate}
+  \item $V_{CE(\text{sat})}$ vs $I_C$: para cada transistor, comparar punto de operación
+        medido con la curva del \emph{datasheet}.
+  \item Transitorio de apagado (osciloscopio o simulación): forma de onda en el colector
+        con y sin diodo \emph{flyback}.
+  \item PWM \emph{duty} vs potencia media: verificar relación lineal $P\propto D$ en el
+        motor.
+  \item Capturas de simulación Multisim: punto de operación en saturación para cada caso.
+\end{enumerate}
+
+% ============================================================================
+\section{Análisis de Resultados}
+\begin{enumerate}
+  \item \textbf{Verificación de saturación}: comparar $V_{CE(\text{sat})}$ medido con el
+        valor del \emph{datasheet}. Calcular la potencia disipada real
+        $P=V_{CE}\times I_C$. Determinar si el transistor requiere disipador según
+        $R_{\theta JA}$ y $T_{J,\max}$.
+  \item \textbf{Análisis de transitorios}: si se usó osciloscopio o simulación, comparar
+        la amplitud del pico con y sin diodo \emph{flyback}. Explicar el riesgo para el
+        microcontrolador y el transistor.
+  \item \textbf{Comparativa \emph{low-side} vs \emph{high-side}}: comparar complejidad,
+        número de componentes, eficiencia y ventajas de seguridad de cada configuración.
+  \item \textbf{Potencia en resistencias}: verificar que las resistencias de base y
+        \emph{pull-up} no se sobrecalienten. Confirmar que la selección de potencia
+        (1/4\,W vs 5\,W) fue correcta.
+  \item \textbf{Integridad de control}: discutir la fiabilidad del control por bus
+        ARINC 429. ¿Qué sucedería si el bit de la bomba cambiara por EMI sin validación
+        de paridad?
+  \item \textbf{Análisis de simulación vs experimento}: comparar los resultados de
+        Multisim con las mediciones de laboratorio (o de casa, \S8). Identificar
+        discrepancias y posibles causas (tolerancias, modelado).
+\end{enumerate}
+
+% ============================================================================
+\section{Preguntas de Discusión y Refuerzo}
+\begin{enumerate}
+  \item \textbf{High-Side vs Low-Side}: ¿por qué en aeronáutica se prefiere que los
+        interruptores de potencia corten la línea positiva (\emph{high-side}) en lugar
+        de la línea de tierra? Considere la seguridad ante fallas de aislamiento a la
+        estructura metálica del avión.
+  \item \textbf{BJT vs MOSFET}: muchos sistemas modernos usan MOSFETs de potencia.
+        Explique la ventaja en términos de control por voltaje (vs corriente),
+        impedancia de entrada y $R_{DS(\text{on})}$ para eficiencia. ¿Por qué un MOSFET
+        de canal N con $V_{GS(\text{th})}<\SI{2}{\volt}$ puede reemplazar al 2N2222A +
+        TIP31C con un solo componente?
+  \item \textbf{Factor de seguridad}: ¿por qué se calcula $I_B$ con ODF$>1$? Relacione
+        con la degradación de $h_{FE}$ por temperatura y envejecimiento.
+  \item \textbf{EMI conductiva}: el motor DC genera ruido eléctrico en el bus de 12\,V.
+        ¿Cómo protegería la línea de 3.3\,V del MCU para evitar reinicios? Considere
+        condensadores de desacoplo, ferrita, y separación física.
+  \item Si la resistencia $R_\text{PU}$ del Caso 2 se calculó para \SI{22}{\ohm} a
+        \SI{4.5}{\watt}, ¿qué ocurre si se usa una resistencia de 1/4\,W? Describa el
+        modo de falla.
+  \item ¿Cuál es el efecto de omitir el diodo \emph{flyback} en un solenoide de tren de
+        aterrizaje que consume 2\,A a 28\,VDC? Estime el voltaje transitorio con la
+        inductancia del solenoide ($L\approx\SI{50}{\milli\henry}$).
+  \item En un sistema FBW con triple redundancia, ¿cómo diseñaría la etapa de potencia
+        para un actuador de alerón? Considere: 3 canales independientes, votación,
+        monitoreo cruzado y modo de reversión mecánica.
+  \item Compare la eficiencia de conmutación de un BJT ($V_{CE(\text{sat})}=\SI{1.4}{\volt}$)
+        con un MOSFET ($R_{DS(\text{on})}=\SI{0.05}{\ohm}$) para una carga de 1.5\,A.
+        Calcule la potencia disipada en cada caso.
+  \item ¿Qué norma (DO-160G, sección 22) especifica la susceptibilidad a transitorios
+        inducidos por rayo en aviónica? ¿Cómo se relaciona esto con la protección
+        \emph{flyback}?
+\end{enumerate}
+
+% ============================================================================
+\section{Entregables (Formato AIAA)}
+\begin{enumerate}
+  \item \textbf{Código fuente}: \code{main.py} + \code{lib/actuator\_pwm.py}
+        (MicroPython) o \code{p6.cpp} (C++).
+  \item \textbf{Memoria de cálculo}: para los 3 casos — $I_B$, $R_B$, $P_D$, $T_J$,
+        selección de diodo.
+  \item \textbf{Capturas de simulación Multisim}: esquema y gráficas de análisis
+        transitorio por caso.
+  \item \textbf{Tabla de caracterización} (Registro \S10.1): $V_{CE(\text{sat})}$,
+        $I_B$, $I_C$ medidos.
+  \item \textbf{Verificación cálculos vs mediciones} (\S10.2): error porcentual.
+  \item \textbf{Gráficas de transitorios}: con y sin diodo \emph{flyback} (osciloscopio
+        o simulación).
+  \item \textbf{Análisis}: mínimo 4 de los 6 puntos de la \S11.
+  \item \textbf{Discusión}: responder $\ge 4$ de las 9 preguntas.
+  \item \textbf{Conclusiones}: hallazgos, fuentes de error, mejoras propuestas.
+  \item \textbf{Referencias}: $\ge 3$ fuentes (\emph{datasheets} de transistores y
+        diodos, libro de electrónica, normativa DO-160G).
+\end{enumerate}
+
+% ============================================================================
+\section{Referencias}
+\begin{enumerate}
+  \item Boylestad, R.L., Nashelsky, L. \emph{Electrónica: Teoría de Circuitos y
+        Dispositivos Electrónicos}, 11a ed., Pearson, 2009.
+  \item ON Semiconductor. \emph{2N2222A Datasheet}, Rev.\ 11, 2013.
+  \item STMicroelectronics. \emph{TIP31C Datasheet}, Rev.\ 7.
+  \item STMicroelectronics. \emph{TIP32C Datasheet}, Rev.\ 5.
+  \item ON Semiconductor. \emph{1N5817--1N5819 Datasheet} (Schottky Barrier Rectifier).
+  \item ARINC. \emph{Specification 429 Part 1}: Mark 33 Digital Information Transfer
+        System (DITS), 2004.
+  \item RTCA. \emph{DO-160G}: Environmental Conditions and Test Procedures for Airborne
+        Equipment, Sec.\ 20 (RF Susceptibility), Sec.\ 22 (Lightning Induced Transient
+        Susceptibility), 2010.
+  \item RTCA. \emph{DO-178C}: Software Considerations in Airborne Systems and Equipment
+        Certification, 2011.
+  \item Moir, I., Seabridge, A. \emph{Aircraft Systems: Mechanical, Electrical, and
+        Avionics Subsystems Integration}, 3rd ed., Wiley, 2008.
+  \item MicroPython. \emph{machine.PWM Documentation}.
+\end{enumerate}
+
+% ============================================================================
+\appendix
+\section{Código Fuente del Repositorio}
+El código completo está en \url{https://github.com/EU97/SISELA-Init}.
+\begin{table}[H]\centering
+\caption{Estructura de archivos de la Práctica 6.}
+\begin{tabular}{ll}
+\toprule
+Plataforma & Archivo(s) / Descripción \\
+\midrule
+MicroPython/ESP32 & \code{P6/main.py} (4 modos), \code{P6/boot.py},
+                    \code{P6/lib/actuator\_pwm.py} \\
+MicroPython/RP2040 & \code{P6/main.py} (adaptación ADC 16-bit), \code{P6/boot.py},
+                     \code{P6/PINES.md} \\
+C++ / PlatformIO & \code{practices/p6.cpp}, \code{common/propulsion.h}
+                   (\code{PropulsionSystem}, API 0--100\,\%) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Diferencias entre plataformas}
+\begin{table}[H]\centering
+\caption{Resumen de diferencias P6 entre plataformas.}
+\begin{tabular}{lll}
+\toprule
+Aspecto & ESP32 & RP2040 \\
+\midrule
+Pin PWM & GPIO18 & GP18 (PWM1A) \\
+Frecuencia PWM & 1\,kHz (LEDC) & 1\,kHz (\emph{slice} PWM) \\
+Jitter PWM & $\sim\SI{10}{\nano\second}$ & $\sim\SI{1}{\nano\second}$ \\
+Pin ADC & GPIO34 (solo entrada) & GP26 (ADC0) \\
+Resolución ADC & 12 bits (0--4095) & 16 bits (0--65535) \\
+Lectura ADC & \code{adc.read()} & \code{adc.read\_u16()} \\
+Config.\ ADC & \code{atten(11dB)} & Ninguna \\
+Alimentación 5\,V & Fuente ext.\ siempre & VSYS para cargas $<\SI{500}{\milli\ampere}$ \\
+C++ PWM & \code{analogWrite} & \code{analogWrite} (core Arduino) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Contexto Aeronáutico Complementario}
+\subsection{Sistemas de potencia en aeronaves}
+En aeronaves modernas, los buses de potencia eléctrica operan típicamente a 28\,VDC
+(aviación general y aviones militares) o 115\,VAC / 270\,VDC (transporte comercial con
+sistemas más eléctricos). Los interruptores de estado sólido (SSPCs — \emph{Solid State
+Power Controllers}) han reemplazado progresivamente a los \emph{circuit breakers}
+mecánicos, ofreciendo protección programable, diagnóstico remoto y menor peso. Los SSPCs
+utilizan MOSFETs de potencia en configuración \emph{high-side} con circuitos de
+protección integrados: sobrecorriente (fusible electrónico programable), arco eléctrico
+(\emph{arc fault}, requisito FAR 25.1353), monitoreo de corriente para diagnóstico, y
+comunicación por bus ARINC 429, ARINC 629 o CAN aeroespacial.
+
+\subsection{Conmutación high-side en aviónica}
+La preferencia por conmutación \emph{high-side} en aeronaves se debe a la práctica
+estándar de conexión a tierra (\emph{grounding}). En la mayoría de las aeronaves, la
+estructura metálica del fuselaje sirve como retorno de corriente (negativo del bus DC).
+Si un cable de carga toca la estructura: con interruptor \emph{high-side}, la carga está
+desconectada del positivo $\Rightarrow$ no hay cortocircuito; con interruptor
+\emph{low-side}, la carga está permanentemente conectada al positivo $\Rightarrow$
+cortocircuito a tierra $\Rightarrow$ falla potencialmente catastrófica.
+
+\end{document}

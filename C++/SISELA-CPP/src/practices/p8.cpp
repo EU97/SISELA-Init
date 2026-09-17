@@ -84,7 +84,7 @@ static void modeInstruments() {
   while (!checkMenuBreak()) {
     if (millis() - last >= 200) {
       last = millis();
-      Serial.printf("alt=%.2f  spd=%.2f  att=%.2f  lux=%.2f | aileron=%d elevator=%d | "
+      serialPrintf(Serial, "alt=%.2f  spd=%.2f  att=%.2f  lux=%.2f | aileron=%d elevator=%d | "
                     "thr=%.0f%% | endstop=%s\n",
                     sensors.altitude(), sensors.speed(), sensors.attitude(), sensors.light(),
                     controls.aileron(), controls.elevator(), propulsion.getThrottle(),
@@ -108,7 +108,7 @@ static void modeManualSurfaces() {
     else if (k == 's') controls.setElevator(controls.elevator() - 5);
     else if (k == 'c') { controls.setAileron(90); controls.setElevator(90); }
     else continue;
-    Serial.printf("aileron=%d  elevator=%d\n", controls.aileron(), controls.elevator());
+    serialPrintf(Serial, "aileron=%d  elevator=%d\n", controls.aileron(), controls.elevator());
   }
 }
 
@@ -126,7 +126,7 @@ static void modePower() {
     else if (k == ' ') propulsion.emergencyStop();
     else if (k >= '0' && k <= '9') propulsion.setThrottle((k - '0') * 10);
     else continue;
-    Serial.printf("throttle=%.0f%%\n", propulsion.getThrottle());
+    serialPrintf(Serial, "throttle=%.0f%%\n", propulsion.getThrottle());
   }
 }
 
@@ -142,7 +142,7 @@ static void modeGear() {
     if (k == 'e') gear.stepperStep(400, true, 600);
     else if (k == 'r') gear.stepperStep(400, false, 600);
     else if (k == 'h') { while (!gear.endstopActive()) gear.stepperStep(1, false, 800); }
-    else if (k == 's') Serial.printf("endstop=%s\n", gear.endstopActive() ? "ON" : "off");
+    else if (k == 's') serialPrintf(Serial, "endstop=%s\n", gear.endstopActive() ? "ON" : "off");
   }
 }
 
@@ -169,11 +169,11 @@ static void modeAutopilot() {
 // ----------------------------------------------------------------------------
 static void modeDiagnostics() {
   Serial.println(F("\n[P8] Diagnostico..."));
-  Serial.printf("Sensores: alt=%.2f spd=%.2f att=%.2f lux=%.2f\n",
+  serialPrintf(Serial, "Sensores: alt=%.2f spd=%.2f att=%.2f lux=%.2f\n",
                 sensors.altitude(), sensors.speed(), sensors.attitude(), sensors.light());
   controls.setAileron(45); delay(200); controls.setAileron(135); delay(200); controls.setAileron(90);
   propulsion.setThrottle(30); delay(300); propulsion.setThrottle(0);
-  Serial.printf("Endstop: %s\n", gear.endstopActive() ? "ACTIVADO" : "LIBRE");
+  serialPrintf(Serial, "Endstop: %s\n", gear.endstopActive() ? "ACTIVADO" : "LIBRE");
   Serial.println(F("Diagnostico completado."));
 }
 
@@ -224,7 +224,7 @@ static void modeDrone() {
         if (v == "m" || v == "M") { quad.motor(i).stop(); break; }
         float pct = v.toFloat();
         float r = quad.motor(i).throttle(pct);
-        Serial.printf("M%d -> %.1f%% (pulso ~%.0fus)\n", i + 1, r, quad.motor(i).pulseUsNow());
+        serialPrintf(Serial, "M%d -> %.1f%% (pulso ~%.0fus)\n", i + 1, r, quad.motor(i).pulseUsNow());
       }
     } else if (k == '3') {
       if (!quad.anyArmed()) { Serial.println(F("Arma los ESC primero (1).")); continue; }
@@ -242,12 +242,12 @@ static void modeDrone() {
         else continue;
         float m[4]; mixX(thr, roll, pitch, yaw, m);
         quad.setAll(m);
-        Serial.printf("thr=%.0f roll=%.0f pitch=%.0f yaw=%.0f -> M1=%.1f M2=%.1f M3=%.1f M4=%.1f\n",
+        serialPrintf(Serial, "thr=%.0f roll=%.0f pitch=%.0f yaw=%.0f -> M1=%.1f M2=%.1f M3=%.1f M4=%.1f\n",
                       thr, roll, pitch, yaw, m[0], m[1], m[2], m[3]);
       }
     } else if (k == '4') {
       if (!quad.anyArmed()) { Serial.println(F("Arma los ESC primero (1).")); continue; }
-      Serial.printf("Manteniendo M1 (pin %d) a 15%% 20s. CH1 osciloscopio -> ese pin.\n", ESC_PINS[0]);
+      serialPrintf(Serial, "Manteniendo M1 (pin %d) a 15%% 20s. CH1 osciloscopio -> ese pin.\n", ESC_PINS[0]);
       quad.motor(0).throttle(15);
       uint32_t t0 = millis();
       while (millis() - t0 < 20000) { if (checkMenuBreak()) break; delay(100); }
@@ -281,15 +281,15 @@ static void modeSignalAnalysis() {
       }
       controls.setAileron(90);
       Serial.print("Latencia (us): "); st.report(Serial, "us");
-      Serial.printf("Tasa efectiva ~ %.1f Hz\n", st.mean() > 0 ? 1e6 / st.mean() : 0.0);
+      serialPrintf(Serial, "Tasa efectiva ~ %.1f Hz\n", st.mean() > 0 ? 1e6 / st.mean() : 0.0);
     } else if (k == '2') {
       const int Fs = 50, N = 500;
-      Serial.printf("Captura multicanal a %d Hz, %d muestras.\n", Fs, N);
+      serialPrintf(Serial, "Captura multicanal a %d Hz, %d muestras.\n", Fs, N);
       Serial.println(F("t_us,alt,spd,att,lux"));
       uint32_t period = 1000000UL / Fs, t0 = micros(), next = t0;
       for (int i = 0; i < N; i++) {
         while ((int32_t)(micros() - next) < 0) {}
-        Serial.printf("%lu,%.4f,%.4f,%.4f,%.4f\n", (unsigned long)(micros() - t0),
+        serialPrintf(Serial, "%lu,%.4f,%.4f,%.4f,%.4f\n", (unsigned long)(micros() - t0),
                       sensors.altitude(), sensors.speed(), sensors.attitude(), sensors.light());
         next += period;
       }

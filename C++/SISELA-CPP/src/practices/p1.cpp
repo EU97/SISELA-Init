@@ -31,6 +31,12 @@ static bool lastBtn2 = HIGH;
 static uint32_t lastDebounce = 0;
 
 namespace practices {
+  // Forward declarations: se definen más abajo, pero loop() las usa antes.
+  void mode_blink();
+  void mode_chaser();
+  void mode_monitor();
+  void mode_integrated();
+
   void setup() {
     Serial.println("\n[P1] Fundamentos de MCUs - LEDs y Botones");
     
@@ -62,12 +68,12 @@ namespace practices {
     
 #ifdef ARDUINO_ARCH_ESP32
     Serial.println("Plataforma: ESP32");
-    Serial.printf("LEDs: GPIO%d (onboard), GPIO%d, GPIO%d\n", LED1_PIN, LED2_PIN, LED3_PIN);
-    Serial.printf("Botones: GPIO%d, GPIO%d (pull-up, activo LOW)\n", BTN1_PIN, BTN2_PIN);
+    serialPrintf(Serial, "LEDs: GPIO%d (onboard), GPIO%d, GPIO%d\n", LED1_PIN, LED2_PIN, LED3_PIN);
+    serialPrintf(Serial, "Botones: GPIO%d, GPIO%d (pull-up, activo LOW)\n", BTN1_PIN, BTN2_PIN);
 #elif defined(ARDUINO_ARCH_RP2040)
     Serial.println("Plataforma: RP2040");
-    Serial.printf("LEDs: GP%d (onboard), GP%d, GP%d\n", LED1_PIN, LED2_PIN, LED3_PIN);
-    Serial.printf("Botones: GP%d, GP%d (pull-up, activo LOW)\n", BTN1_PIN, BTN2_PIN);
+    serialPrintf(Serial, "LEDs: GP%d (onboard), GP%d, GP%d\n", LED1_PIN, LED2_PIN, LED3_PIN);
+    serialPrintf(Serial, "Botones: GP%d, GP%d (pull-up, activo LOW)\n", BTN1_PIN, BTN2_PIN);
 #endif
     
     Serial.println("\n=== Menú de modos ===");

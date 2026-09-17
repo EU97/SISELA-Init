@@ -16,7 +16,13 @@ static const int STEPS_PER_REV = 200;  // NEMA 17 typical
 static const int MAX_STEPS_FORWARD = 400;  // límite barrido
 
 namespace practices {
-  
+
+  // Forward declarations: se definen más abajo, pero loop() las usa antes.
+  void mode_jog(String cmd);
+  void mode_move_n(String cmd);
+  void mode_sweep();
+  void mode_homing();
+
   // Convertir RPM → intervalo entre pasos (us)
   uint32_t rpm_to_interval_us(int rpm, int steps_per_rev) {
     if (rpm <= 0) return 100000;
@@ -32,20 +38,20 @@ namespace practices {
     
 #if defined(STEPPER_ULN2003)
     Serial.println("Driver: ULN2003 (28BYJ-48)");
-    Serial.printf("Pines: IN1=GP%d, IN2=GP%d, IN3=GP%d, IN4=GP%d\n", 
+    serialPrintf(Serial, "Pines: IN1=GP%d, IN2=GP%d, IN3=GP%d, IN4=GP%d\n", 
                   PIN_STEPPER_IN1, PIN_STEPPER_IN2, PIN_STEPPER_IN3, PIN_STEPPER_IN4);
 #else
     Serial.println("Driver: A4988/DRV8825");
-    Serial.printf("Pines: STEP=GP%d, DIR=GP%d", PIN_STEPPER_STEP, PIN_STEPPER_DIR);
+    serialPrintf(Serial, "Pines: STEP=GP%d, DIR=GP%d", PIN_STEPPER_STEP, PIN_STEPPER_DIR);
     if (PIN_STEPPER_EN >= 0) {
-      Serial.printf(", EN=GP%d\n", PIN_STEPPER_EN);
+      serialPrintf(Serial, ", EN=GP%d\n", PIN_STEPPER_EN);
     } else {
       Serial.println();
     }
 #endif
     
     if (PIN_ENDSTOP >= 0) {
-      Serial.printf("Endstop: GP%d (pull-up, activo LOW)\n", PIN_ENDSTOP);
+      serialPrintf(Serial, "Endstop: GP%d (pull-up, activo LOW)\n", PIN_ENDSTOP);
     } else {
       Serial.println("Endstop: No configurado");
     }

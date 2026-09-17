@@ -81,25 +81,25 @@ namespace practices {
   static void print_platform_info() {
 #ifdef ARDUINO_ARCH_ESP32
     Serial.println("Plataforma: ESP32 (12-bit ADC, 0-4095)");
-    Serial.printf("Pin: GPIO%d\n", adcPin);
+    serialPrintf(Serial, "Pin: GPIO%d\n", adcPin);
 #elif defined(ARDUINO_ARCH_RP2040)
     Serial.println("Plataforma: RP2040 (10-bit ADC, 0-1023)");
-    Serial.printf("Pin: GP%d\n", adcPin);
+    serialPrintf(Serial, "Pin: GP%d\n", adcPin);
 #endif
   }
 
   static void print_sensor_config() {
     if (sensorType == 1) {
       Serial.println("\n=== Configuración NTC ===");
-      Serial.printf("V_SUPPLY: %.1f V\n", V_SUPPLY);
-      Serial.printf("R_SERIES: %.0f Ω\n", R_SERIES);
-      Serial.printf("NTC_R0: %.0f Ω @ 25°C\n", NTC_R0);
-      Serial.printf("BETA: %.0f\n", NTC_BETA);
+      serialPrintf(Serial, "V_SUPPLY: %.1f V\n", V_SUPPLY);
+      serialPrintf(Serial, "R_SERIES: %.0f Ω\n", R_SERIES);
+      serialPrintf(Serial, "NTC_R0: %.0f Ω @ 25°C\n", NTC_R0);
+      serialPrintf(Serial, "BETA: %.0f\n", NTC_BETA);
       Serial.println("Conexión: 3V3 → R_SERIES → [ADC] → NTC → GND");
     } else {
       Serial.println("\n=== Configuración LM35 ===");
-      Serial.printf("V_SUPPLY: %.1f V\n", V_SUPPLY);
-      Serial.printf("Sensibilidad: %.0f mV/°C\n", LM35_MV_PER_C);
+      serialPrintf(Serial, "V_SUPPLY: %.1f V\n", V_SUPPLY);
+      serialPrintf(Serial, "Sensibilidad: %.0f mV/°C\n", LM35_MV_PER_C);
       Serial.println("Rango típico: 0-100°C (LM35DZ)");
       Serial.println("Conexión: LM35 Vout → [ADC] (Vs=5V o 3.3V)");
       Serial.println("Nota: Máxima precisión con Vs=5V");
@@ -143,7 +143,7 @@ namespace practices {
       maxMode = 3;
       defaultMode = 2;
     }
-    Serial.printf("\nEscribe 1..%d y ENTER. Default: %d en 5s\n", maxMode, defaultMode);
+    serialPrintf(Serial, "\nEscribe 1..%d y ENTER. Default: %d en 5s\n", maxMode, defaultMode);
 
     // Esperar input 5 segundos
     uint32_t start = millis();

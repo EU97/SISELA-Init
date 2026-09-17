@@ -1,6 +1,7 @@
 #pragma once
 #include <Arduino.h>
 #include <math.h>
+#include "board_config.h"  // serialPrintf(): Stream::printf portable (RP2040 core no lo tiene)
 
 // ============================================================================
 // siglab.h — utilidades de análisis de señales en el microcontrolador (C++)
@@ -54,7 +55,7 @@ class Stats {
     return s > 0.0 ? log(fullScale / (sqrt(12.0) * s)) / log(2.0) : INFINITY;
   }
   void report(Stream &io, const char *unit = "") const {
-    io.printf("n=%lu media=%.4f%s sigma=%.5f%s rms=%.4f%s pp=%.5f%s min=%.4f max=%.4f\n",
+    serialPrintf(io, "n=%lu media=%.4f%s sigma=%.5f%s rms=%.4f%s pp=%.5f%s min=%.4f max=%.4f\n",
               (unsigned long)_n, _mean, unit, stddev(), unit, rms(), unit,
               pp(), unit, _min, _max);
   }
@@ -95,7 +96,7 @@ struct BlockResult {
 
   void report(Stream &io) const {
     float err = fs_nominal ? 100.0f * (fs_actual - fs_nominal) / fs_nominal : 0.0f;
-    io.printf("Fs solicitada=%.1f Hz | Fs real=%.1f Hz (%+.2f %%) | "
+    serialPrintf(io, "Fs solicitada=%.1f Hz | Fs real=%.1f Hz (%+.2f %%) | "
               "jitter sigma=%.2f us | dt=[%lu, %lu] us | n=%u\n",
               fs_nominal, fs_actual, err, jitter_us,
               (unsigned long)dt_min_us, (unsigned long)dt_max_us, (unsigned)N);
@@ -127,10 +128,10 @@ class BlockSampler {
   }
 
   void dumpCsv(Stream &io, const BlockResult<N> &r, const char *col = "ch0") {
-    io.printf("t_us,%s\n", col);
+    serialPrintf(io, "t_us,%s\n", col);
     for (uint16_t i = 0; i < N; i++)
-      io.printf("%lu,%.5f\n", (unsigned long)r.t_us[i], r.samples[i]);
-    io.printf("# end n=%u fs_actual=%.1f jitter_us=%.2f\n",
+      serialPrintf(io, "%lu,%.5f\n", (unsigned long)r.t_us[i], r.samples[i]);
+    serialPrintf(io, "# end n=%u fs_actual=%.1f jitter_us=%.2f\n",
               (unsigned)N, r.fs_actual, r.jitter_us);
   }
 };
@@ -144,7 +145,7 @@ template <typename ReadFn>
 uint32_t streamCsv(Stream &io, ReadFn read, float fs_hz,
                    const char *col = "ch0", uint32_t max_samples = 0,
                    char stop_key = 'm') {
-  io.printf("t_us,%s\n", col);
+  serialPrintf(io, "t_us,%s\n", col);
   uint32_t period_us = (uint32_t)(1e6f / fs_hz);
   uint32_t t0 = micros();
   uint32_t next = t0;
@@ -152,13 +153,13 @@ uint32_t streamCsv(Stream &io, ReadFn read, float fs_hz,
   while (true) {
     while ((int32_t)(micros() - next) < 0) { /* espera activa */ }
     float v = (float)read();
-    io.printf("%lu,%.5f\n", (unsigned long)(micros() - t0), v);
+    serialPrintf(io, "%lu,%.5f\n", (unsigned long)(micros() - t0), v);
     next += period_us;
     i++;
     if (max_samples && i >= max_samples) break;
     if ((i & 0x1F) == 0 && io.available() && io.read() == stop_key) break;
   }
-  io.printf("# end n=%lu\n", (unsigned long)i);
+  serialPrintf(io, "# end n=%lu\n", (unsigned long)i);
   return i;
 }
 

@@ -416,6 +416,60 @@ mide la posición real: \textbf{tiempo de subida} (10--90\,\%), \textbf{sobre-os
 FBW y de los requisitos de ancho de banda de los lazos de control de vuelo.
 
 % ============================================================================
+\section{Alternativa de Trabajo en Casa (Multímetro + Simulación)}
+\label{sec:casa}
+
+No todos los casos de esta práctica requieren el mismo equipo. La tabla~\ref{tab:casa5}
+resume qué puede hacerse sin osciloscopio ni generador de funciones.
+
+\paragraph{Con multímetro (en casa).} Un multímetro en modo DC promedia la señal PWM:
+para un ciclo de trabajo $D$, $V_\text{avg} = \SI{3.3}{\volt}\times D$. Ejemplo: a
+90\si{\degree} (\(D=7.5\)\,\%), $V_\text{avg}\approx\SI{0.25}{\volt}$ — medir en el pin de
+señal del servo (Caso 2) y comparar contra este cálculo para validar el ancho de pulso
+\emph{indirectamente}. Si el multímetro tiene función \textbf{Hz/Duty\,\%}
+(común en modelos de gama media), puede leer directamente la frecuencia
+($\approx\SI{50}{\hertz}$) y el ciclo de trabajo sin osciloscopio — revisar el manual del
+equipo disponible.
+
+\paragraph{Con simulación.} En NI Multisim/Proteus/Wokwi: construir una fuente de pulsos
+con los parámetros calculados en la Tabla~2 (periodo \SI{20}{\milli\second}, ancho de
+pulso según el ángulo) y un \textbf{osciloscopio virtual} del propio simulador para ``ver''
+la forma de onda sin instrumento físico. Es también el lugar ideal para explorar,
+\emph{sin riesgo}, qué pasaría con anchos de pulso fuera de rango (p.\ ej. \SI{600}{\micro\second}
+o \SI{2600}{\micro\second}) antes de probarlos en un servo real.
+
+\paragraph{Requiere laboratorio presencial (no sustituible).} El \emph{jitter} de PWM
+(Caso 5) se mide en nanosegundos: ni un multímetro ni una simulación idealizada (que no
+modela las imperfecciones reales del temporizador de hardware) pueden reproducirlo — este
+caso exige un osciloscopio real. El muestreo/aliasing (Caso 6) exige una señal senoidal
+real y controlada en frecuencia; sin generador de funciones de banco, la alternativa más
+cercana es una fuente de audio (teléfono/PC) con divisor resistivo y \emph{offset} DC,
+pero requiere precaución adicional para no exceder \SIrange{0}{3.3}{\volt} — se recomienda
+dejar este caso para cuando haya acceso al generador de laboratorio.
+
+\begin{table}[H]\centering
+\caption{Alternativas de trabajo en casa por caso de estudio.}
+\label{tab:casa5}
+\begin{tabular}{p{4.6cm}p{3.0cm}p{2.0cm}p{3.2cm}}
+\toprule
+Caso & Multímetro & Simulación & Requiere laboratorio \\
+\midrule
+1--4 (barrido, ángulo, pulso, potenciómetro) & Sí ($V_\text{avg}$, Hz/Duty) & Sí & No \\
+5 (jitter de PWM) & No & No (idealizada) & \textbf{Sí, osciloscopio} \\
+6 (muestreo/aliasing) & Parcial & Parcial & \textbf{Sí, generador} \\
+7 (respuesta al escalón) & Sí (indirecto) & Sí & No, 100\,\% viable en casa \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{nota}[Caso recomendado para trabajo remoto]
+El \textbf{Caso 7} (respuesta al escalón) es completamente ejecutable en casa: solo
+necesita el servo, un potenciómetro de realimentación y el propio microcontrolador — sin
+osciloscopio ni generador. Es el punto de partida sugerido si no se cuenta con acceso al
+laboratorio.
+\end{nota}
+
+% ============================================================================
 \section{Registro de Datos y Análisis}
 
 \begin{table}[H]\centering
@@ -585,7 +639,8 @@ escalón & t.\ subida (ms) & sobre-oscilación (\%) & t.\ estab.\ \(\pm\)\,2\,\%
 \section{Código Fuente del Repositorio}
 \begin{table}[H]\centering
 \caption{Archivos relevantes de la Práctica 5.}
-\begin{tabular}{ll}
+\small
+\begin{tabular}{p{7.2cm}p{6.0cm}}
 \toprule
 Ruta & Descripción \\
 \midrule
@@ -595,7 +650,7 @@ Ruta & Descripción \\
 \code{.../P5/docs/analisis\_senales.md} & Guía del módulo de análisis \\
 \code{.../P5/tools/servo\_cli.py} & CLI de control remoto por serie \\
 \code{C++/SISELA-CPP/src/practices/p5.cpp} & Implementación C++ (7 modos) \\
-\code{C++/SISELA-CPP/src/common/\{flight\_controls,siglab\}.h} & Clases comunes \\
+\code{C++/SISELA-CPP/src/common/\allowbreak\{flight\_controls,siglab\}.h} & Clases comunes \\
 \code{tools/sisela\_signal/} & Toolkit PC de análisis de señales \\
 \bottomrule
 \end{tabular}
