@@ -458,10 +458,21 @@ Modo & Nombre & Descripción \\
 3 & Barrido & Avanza hasta fin de carrera o límite, retrocede, repite \\
 4 & Homing & Retrocede hasta fin de carrera, libera, establece posición cero \\
 5 & Info del driver & Muestra configuración: tipo, pines, SPR, RPM \\
+6 & Registro CSV & Jitter de intervalo STEP; CSV \code{t\_us,dt\_us} \\
 \bottomrule
 \end{tabular}
 \end{table}
 Tecla \code{m} $\to$ regresar al menú en cualquier modo.
+
+\paragraph{Modo 6 — recolección de datos y vista en vivo.} Ejecuta 300 pasos a
+RPM constante midiendo el intervalo real entre cada uno con \code{ticks\_us}
+(MicroPython) / \code{micros()} (C++). Alimenta la toolkit compartida
+\code{tools/sisela\_signal/} (disponible en MicroPython y C++, mismo formato CSV):
+\begin{lstlisting}[language=bash]
+python -m sisela_signal capture --port COM5 --menu 6 --out cap.csv
+python -m sisela_signal characterize --file cap.csv --col dt_us --mode adc
+python -m sisela_signal live --port COM5 --menu 6 --cols dt_us
+\end{lstlisting}
 
 \subsection{Caso 1: verificación de secuencia de fases}
 \textbf{Verificar con osciloscopio}: canales en IN1--IN4 con la secuencia
@@ -506,8 +517,10 @@ repetibilidad esperado.
 \subsection{Implementación C++ (PlatformIO)}
 El archivo \code{p7.cpp} implementa los modos usando la clase \code{LandingGear}
 (\code{common/landing\_gear.h}), que encapsula tanto la secuencia ULN2003 como el control
-STEP/DIR del A4988 según la macro \code{STEPPER\_ULN2003}. Compilar con
-\code{pio run -e esp32dev} o \code{pio run -e pico} (con \code{-DPRACTICE=7}).
+STEP/DIR del A4988 según la macro \code{STEPPER\_ULN2003}, incluido el Modo 5 de
+registro CSV (\code{common/siglab.h}) — mismo formato \code{t\_us,dt\_us} que la
+versión MicroPython. Compilar con \code{pio run -e esp32dev} o \code{pio run -e
+pico} (con \code{-DPRACTICE=7}).
 
 % ============================================================================
 \section{Alternativa de Trabajo en Casa (Multímetro + Simulación)}

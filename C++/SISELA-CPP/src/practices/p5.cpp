@@ -14,12 +14,15 @@
 //   5. Jitter de PWM (mantiene un ángulo fijo para medirlo con el osciloscopio)
 //   6. Muestreo y aliasing (seno del generador -> ADC, bloque CSV a Fs fija)
 //   7. Respuesta al escalón del servo-lazo (realimentación de posición por ADC)
+//   8. Vista en vivo (ángulo + ADC), streaming continuo para tools/sisela_signal live
 
 static FlightControls controls;
 static int mode = 1;
 static int angle = 0;
 static int step = 1;
 static uint32_t lastUpdate = 0;
+static int liveAngle = 0;
+static int liveDir = 1;
 
 // ADC del RP2040 en Arduino: por defecto 10 bit. Se fija a 12 bit para igualar
 // a MicroPython (0..4095) — inofensivo en ESP32 (ya es 12 bit).
@@ -56,7 +59,7 @@ namespace practices {
       pinMode(pins().adc_altitude, INPUT);
       serialPrintf(Serial, "ADC en pin %d (%d bit)\n", pins().adc_altitude, ADC_BITS);
     }
-    Serial.println("Modos: 1=Barrido 2=ADC 5=JitterPWM 6=Muestreo/aliasing 7=Escalon");
+    Serial.println("Modos: 1=Barrido 2=ADC 5=JitterPWM 6=Muestreo/aliasing 7=Escalon 8=VistaEnVivo");
     Serial.println("Envia el numero + ENTER.  Toolkit PC: tools/sisela_signal/");
 
     angle = 90;
@@ -100,6 +103,12 @@ namespace practices {
         Serial.println("# fin  PC: python -m sisela_signal characterize --file step.csv --col v --mode step");
         mode = 0;
       }
+      else if (c == '8') {
+        mode = 8;
+        liveAngle = 0; liveDir = 1;
+        Serial.println("t_us,angle_deg,adc_raw");
+        Serial.println("PC: python -m sisela_signal live --port COMx --menu 8 --cols angle_deg,adc_raw");
+      }
     }
 
     if (mode == 1 && millis() - lastUpdate >= 20) {
@@ -118,6 +127,14 @@ namespace practices {
         lastLog = millis();
         serialPrintf(Serial, "ADC: %d -> Angulo: %d\n", raw, angle);
       }
+    } else if (mode == 8 && millis() - lastUpdate >= 50) {  // 20 Hz, no critico en tiempo
+      lastUpdate = millis();
+      controls.setAileron(liveAngle);
+      int raw = pins().adc_altitude >= 0 ? analogRead(pins().adc_altitude) : 0;
+      serialPrintf(Serial, "%lu,%d,%d\n", (unsigned long)micros(), liveAngle, raw);
+      liveAngle += liveDir * 2;
+      if (liveAngle >= 180) { liveAngle = 180; liveDir = -1; }
+      else if (liveAngle <= 0) { liveAngle = 0; liveDir = 1; }
     }
   }
 }

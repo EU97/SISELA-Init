@@ -79,7 +79,24 @@ Diodo flyback: Cátodo a +V, Ánodo a Drenador
 | 2 | PWM manual (0–100%) | `Ingresa duty %: 50` → `Aplicado duty = 50.0%` |
 | 3 | Barrido 0→100→0 | Duty aumenta/disminuye continuamente |
 | 4 | Control por potenciómetro | `ADC=32768 → Duty=50%` (control ultra suave) |
+| 5 | Registro CSV (barrido con muestreo) | Emite `t_us,duty_pct,adc_raw` por serie, para `tools/sisela_signal` |
 | q | Salir | Apaga PWM (duty 0%) y termina |
+
+### Modo 5 — Registro CSV y vista en vivo
+
+El Modo 5 ejecuta un barrido automático 0→100→0 mientras muestrea el ADC (si hay
+potenciómetro conectado) a 50 Hz, y emite el resultado como CSV
+`t_us,duty_pct,adc_raw` por el puerto serie — el mismo formato que usan P4, P5 y
+P8. Úsalo con la toolkit compartida `tools/sisela_signal/` (raíz del repo):
+
+```bash
+# Captura y guarda a archivo
+python -m sisela_signal capture --port COM5 --menu 5 --out cap.csv
+python -m sisela_signal characterize --file cap.csv --col adc_raw --mode adc
+
+# Vista en vivo (gráfica actualizándose mientras corre el barrido)
+python -m sisela_signal live --port COM5 --menu 5 --cols duty_pct,adc_raw
+```
 
 ### Parámetros ajustables (main.py)
 

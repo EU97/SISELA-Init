@@ -38,12 +38,23 @@ Diagrama de cableado en `assets/wiring.mmd` (bajo lado con MOSFET N y diodo flyb
 	- 2) PWM manual: ingresa un porcentaje (0–100) para fijar el duty
 	- 3) Barrido: duty de 0 a 100 y regreso continuo
 	- 4) Potenciómetro: lee ADC (GPIO34) y mapea a duty
+	- 5) Registro CSV: barrido automático con muestreo del ADC, emite `t_us,duty_pct,adc_raw` por serie
 3) En cualquier modo, presiona `m` + ENTER para volver al menú.
 
 Parámetros por defecto:
 
 - PWM en GPIO18 a 1 kHz (ajustable en `main.py` → `PWM_FREQ`)
 - Duty 0–100 % (se adapta a `duty_u16` o `duty` según firmware)
+
+### Modo 5 — Registro CSV y vista en vivo
+
+El Modo 5 alimenta la toolkit compartida `tools/sisela_signal/` (raíz del repo):
+
+```bash
+python -m sisela_signal capture --port COM5 --menu 5 --out cap.csv
+python -m sisela_signal characterize --file cap.csv --col adc_raw --mode adc
+python -m sisela_signal live --port COM5 --menu 5 --cols duty_pct,adc_raw   # vista en vivo
+```
 
 ## Verificación y medición
 

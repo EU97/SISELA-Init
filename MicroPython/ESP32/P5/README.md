@@ -59,7 +59,18 @@ Resumen rápido:
 | 5 | Jitter de PWM (osciloscopio) | mantiene un pulso fijo; se mide σ del ancho con el osciloscopio |
 | 6 | Muestreo y aliasing (ADC + generador) | bloque CSV `t_us,counts,v` a Fs fija |
 | 7 | Respuesta al escalón del servo-lazo | CSV de la realimentación de posición durante el transitorio |
+| 8 | Vista en vivo (ángulo + ADC) | Streaming continuo `t_us,angle_deg,adc_raw`, para `sisela_signal live` |
 | q | Salir | — |
+
+## Vista en vivo (modo 8)
+
+A diferencia de los modos 5–7 (captura en bloque, precisión de muestreo crítica), el
+modo 8 transmite en continuo mientras el servo barre 0→180→0, sin objetivo de medir
+jitter. Úsalo para ver la gráfica actualizándose en tiempo real, sin capturar primero:
+
+```bash
+python -m sisela_signal live --port COM5 --menu 8 --cols angle_deg,adc_raw
+```
 
 ## Análisis de señales (modos 5–7)
 

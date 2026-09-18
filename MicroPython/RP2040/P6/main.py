@@ -6,6 +6,7 @@ Modos:
   2) PWM manual (0–100%)
   3) Barrido 0→100→0
   4) Potenciómetro (ADC)
+  5) Registro CSV (barrido con muestreo) — para tools/sisela_signal
 
 Presiona 'm' + ENTER en cualquier modo para regresar al menú.
 
@@ -14,6 +15,11 @@ Presiona 'm' + ENTER en cualquier modo para regresar al menú.
   - Pin ADC: GP26 (ADC0) en lugar de GPIO34
   - ADC 16-bit: adc.read_u16() → 0–65535
   - Sin atten(): No requiere configuración de atenuación
+
+El Modo 5 alimenta la toolkit PC `tools/sisela_signal/`:
+  python -m sisela_signal capture --port COM5 --menu 5 --out cap.csv
+  python -m sisela_signal characterize --file cap.csv --col adc_raw --mode adc
+  python -m sisela_signal live --port COM5 --menu 5 --cols duty_pct,adc_raw
 """
 
 try:
@@ -58,6 +64,12 @@ except ImportError:
                 def register(self, *a): pass
                 def poll(self, t): return []
             return _P()
+
+try:
+    from siglab import stream_csv
+    HAVE_SIGLAB = True
+except ImportError:
+    HAVE_SIGLAB = False
 
 
 # Configuración de pines/frecuencia
@@ -189,6 +201,35 @@ def mode_potentiometer(pwm: PWM, adc: ADC | None):
         time.sleep_ms(10)
 
 
+def mode_csv_log(pwm: PWM, adc: ADC | None):
+    """Modo 5: barrido automático 0->100->0 registrando CSV `t_us,duty_pct,adc_raw`
+    a Fs fija, para `tools/sisela_signal` (captura, análisis o vista en vivo).
+    🔄 RP2040: adc.read_u16() -> 0..65535."""
+    print("\n[Modo 5] Registro CSV (barrido con muestreo). 'm'+ENTER aborta.")
+    if not HAVE_SIGLAB:
+        print("[WARN] Falta lib/siglab.py. No se puede registrar CSV.")
+        return
+    fs = 50.0  # Hz
+    duration_s = 4.0  # un barrido completo 0->100->0 aprox.
+    n = int(fs * duration_s)
+    step = 100.0 / (n / 2.0)
+    state = {"duty": 0.0, "dir": 1.0}
+
+    def _read():
+        d = state["duty"]
+        _set_duty_percent(pwm, d)
+        raw = adc.read_u16() if adc is not None else 0
+        state["duty"] += state["dir"] * step
+        if state["duty"] >= 100.0:
+            state["duty"], state["dir"] = 100.0, -1.0
+        elif state["duty"] <= 0.0:
+            state["duty"], state["dir"] = 0.0, 1.0
+        return (round(d, 1), raw)
+
+    stream_csv(_read, fs, cols=("duty_pct", "adc_raw"), max_samples=n)
+    _set_duty_percent(pwm, 0)
+
+
 MENU = (
     """
 ==============================
@@ -199,6 +240,7 @@ MENU = (
  2) PWM manual (0–100%)
  3) Barrido (0→100→0)
  4) Potenciómetro (ADC GP{})
+ 5) Registro CSV (barrido con muestreo)
 ==============================
 """.format(ACT_PIN, PWM_FREQ, ADC_PIN)
 )
@@ -221,6 +263,8 @@ def main():
                 mode_sweep(pwm)
             elif sel == "4":
                 mode_potentiometer(pwm, adc)
+            elif sel == "5":
+                mode_csv_log(pwm, adc)
             else:
                 print("Opción no válida.")
     finally:

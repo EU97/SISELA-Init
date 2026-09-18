@@ -52,12 +52,23 @@ Diagramas de cableado en `assets/wiring_*.mmd`.
    - 3) **Barrido**: avanza hasta fin de carrera (o límite fijo), retrocede, repite
    - 4) **Homing**: retrocede hasta encontrar fin de carrera, luego libera
    - 5) **Info**: muestra configuración del driver
+   - 6) **Registro CSV**: mide el intervalo real entre pasos (jitter) y emite `t_us,dt_us` por serie
 4) En cualquier modo, presiona `m` + ENTER para volver al menú.
 
 Parámetros por defecto:
 
 - RPM: 60 (ajustable por modo)
 - Pasos por revolución: 200 (NEMA 1/1 microstepping), 4096 (28BYJ-48 half-step)
+
+### Modo 6 — Registro CSV y vista en vivo
+
+El Modo 6 alimenta la toolkit compartida `tools/sisela_signal/` (raíz del repo):
+
+```bash
+python -m sisela_signal capture --port COM5 --menu 6 --out cap.csv
+python -m sisela_signal characterize --file cap.csv --col dt_us --mode adc
+python -m sisela_signal live --port COM5 --menu 6 --cols dt_us   # vista en vivo del jitter
+```
 
 ## Verificación y medición
 

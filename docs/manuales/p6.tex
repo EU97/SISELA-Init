@@ -481,10 +481,20 @@ Modo & Nombre & Descripción \\
 2 & PWM manual & Ingresa \emph{duty} (0--100) por terminal \\
 3 & Barrido automático & Rampa 0\,\%$\to$100\,\%$\to$0\,\% continua \\
 4 & Potenciómetro (ADC) & Lectura ADC mapea a \emph{duty} \\
+5 & Registro CSV & Barrido con muestreo de ADC; CSV \code{t\_us,duty\_pct,adc\_raw} \\
 \bottomrule
 \end{tabular}
 \end{table}
 Tecla \code{m} $\to$ regresar al menú en cualquier modo.
+
+\paragraph{Modo 5 — recolección de datos y vista en vivo.} Alimenta la toolkit
+compartida \code{tools/sisela\_signal/} (disponible en MicroPython y C++, mismo
+formato CSV):
+\begin{lstlisting}[language=bash]
+python -m sisela_signal capture --port COM5 --menu 5 --out cap.csv
+python -m sisela_signal characterize --file cap.csv --col adc_raw --mode adc
+python -m sisela_signal live --port COM5 --menu 5 --cols duty_pct,adc_raw
+\end{lstlisting}
 
 \subsection{Caso 1: anunciador acústico (\emph{Warning})}
 Ejecutar Modo 1. \textbf{Verificar}: el buzzer suena con \emph{duty} 100\,\% y se
@@ -536,9 +546,13 @@ correspondientes.
 \end{figure}
 
 \subsection{Implementación C++ (PlatformIO)}
-El archivo \code{p6.cpp} implementa tres modos usando la clase \code{PropulsionSystem}
-(\code{common/propulsion.h}, API en porcentaje 0--100). Compilar con
-\code{pio run -e esp32dev} o \code{pio run -e pico} (con \code{-DPRACTICE=6}).
+El archivo \code{p6.cpp} implementa cuatro modos usando la clase
+\code{PropulsionSystem} (\code{common/propulsion.h}, API en porcentaje 0--100):
+rampa, control por serial, control por ADC, y un cuarto modo de registro CSV
+(\code{siglab::serialPrintf}, \code{common/siglab.h}) equivalente al Modo 5 de
+MicroPython — mismo formato \code{t\_us,duty\_pct,adc\_raw}, compatible con la
+misma toolkit \code{tools/sisela\_signal}. Compilar con \code{pio run -e
+esp32dev} o \code{pio run -e pico} (con \code{-DPRACTICE=6}).
 
 % ============================================================================
 \section{Alternativa de Trabajo en Casa (Multímetro + Simulación)}

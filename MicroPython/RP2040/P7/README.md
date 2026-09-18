@@ -116,8 +116,9 @@ Modos:
   3) Barrido     — Avance/retroceso con fin de carrera
   4) Homing      — Búsqueda de referencia (endstop)
   5) Info        — Configuración del driver
+  6) Registro CSV — Jitter de intervalo STEP, para tools/sisela_signal
 
-Opción (1-5):
+Opción (1-6):
 ```
 
 ### 4) Modos de operación
@@ -205,6 +206,18 @@ Endstop: GP4 (configurado)
 RPM → Intervalo:
   60 RPM = 5000 µs entre pasos
   120 RPM = 2500 µs entre pasos
+```
+
+#### Modo 6: Registro CSV (jitter de intervalo STEP)
+Ejecuta 300 pasos a RPM constante, mide con `ticks_us` el intervalo real entre
+cada uno y lo emite como CSV `t_us,dt_us` por el puerto serie — el mismo
+formato que usan P4, P5 y P8. Alimenta la toolkit compartida
+`tools/sisela_signal/` (raíz del repo):
+
+```bash
+python -m sisela_signal capture --port COM5 --menu 6 --out cap.csv
+python -m sisela_signal characterize --file cap.csv --col dt_us --mode adc
+python -m sisela_signal live --port COM5 --menu 6 --cols dt_us   # vista en vivo del jitter
 ```
 
 ---

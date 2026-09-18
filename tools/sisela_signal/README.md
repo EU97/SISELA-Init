@@ -35,6 +35,13 @@ python -m sisela_signal --help
 # 1) Capturar un bloque del MCU (entra al modo 6, 5 s, guarda CSV)
 python -m sisela_signal capture --port /dev/ttyUSB0 --menu 6 --seconds 5 --out cap.csv
 
+# 1-bis) Vista en vivo (gráfica actualizándose) del mismo stream, sin capturar
+#        primero — sirve para CUALQUIER práctica/modo que emita CSV por serie,
+#        sea firmware MicroPython o C++ (el formato es idéntico, ver más abajo)
+python -m sisela_signal live --port /dev/ttyUSB0 --menu 6 --cols dt_us
+python -m sisela_signal live --port /dev/ttyUSB0 --menu 5 --cols duty_pct,adc_raw --window 10
+#        (--save-csv además guarda el CSV recibido mientras se grafica en vivo)
+
 # 2) Espectro + métricas de calidad de la cadena ADC
 python -m sisela_signal spectrum --file cap.csv --col v --metrics --full-scale 3.3
 
@@ -110,10 +117,13 @@ El ADC de ESP32/RP2040 acepta **0–3.3 V** y **no tolera voltajes negativos ni
 from sisela_signal.dataio import load_csv
 from sisela_signal import spectrum, filters, sampling, characterize, bode
 from sisela_signal.scopeio import load_scope_csv
+from sisela_signal.live import live_plot
 
 cap = load_csv("cap.csv")                 # -> Capture(t, channels, fs, jitter_s, ...)
 m = spectrum.tone_metrics(cap.col("v"), cap.fs, full_scale=3.3)
 print(m.report())                         # THD, SNR, SINAD, ENOB, SFDR
+
+live_plot(port="/dev/ttyUSB0", menu="6", cols=["dt_us"], window=15)
 ```
 
 ## Pruebas

@@ -285,7 +285,10 @@ static void modeSignalAnalysis() {
     } else if (k == '2') {
       const int Fs = 50, N = 500;
       serialPrintf(Serial, "Captura multicanal a %d Hz, %d muestras.\n", Fs, N);
-      Serial.println(F("t_us,alt,spd,att,lux"));
+      // Nombres de columna idénticos a la versión MicroPython (main.py del P8),
+      // para que la misma toolkit PC (tools/sisela_signal) y los mismos
+      // comandos funcionen sin cambios sobre cualquiera de las dos salidas.
+      Serial.println(F("t_us,alt_m,spd_kt,att_deg,lux"));
       uint32_t period = 1000000UL / Fs, t0 = micros(), next = t0;
       for (int i = 0; i < N; i++) {
         while ((int32_t)(micros() - next) < 0) {}
@@ -293,7 +296,7 @@ static void modeSignalAnalysis() {
                       sensors.altitude(), sensors.speed(), sensors.attitude(), sensors.light());
         next += period;
       }
-      Serial.println(F("# fin. PC: python -m sisela_signal spectrum --file cap.csv --col alt --psd"));
+      Serial.println(F("# fin. PC: python -m sisela_signal spectrum --file cap.csv --col alt_m --psd"));
     }
   }
 }

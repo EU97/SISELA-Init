@@ -5,6 +5,7 @@ cli — interfaz de línea de comandos de sisela_signal.
 
 Comandos:
   capture       captura un bloque CSV del microcontrolador por puerto serie
+  live          vista en vivo (gráfica actualizándose) del stream CSV por serie
   spectrum      FFT / PSD de una captura o export de osciloscopio
   alias         análisis de muestreo y aliasing (diagrama de plegado / barrido)
   filter        aplica un filtro digital y compara antes/después
@@ -57,6 +58,13 @@ def cmd_capture(args):
                     fh.write(f"{cap.t[i]*1e6:.1f}," +
                              ",".join(f"{cap.channels[c][i]:g}" for c in cols) + "\n")
         print(f"[guardado] {args.out}")
+
+
+def cmd_live(args):
+    from .live import live_plot
+    cols = [c.strip() for c in args.cols.split(",")] if args.cols else None
+    live_plot(port=args.port, baud=args.baud, menu=args.menu, cols=cols,
+              window=args.window, save=args.save_csv, no_reset=args.no_reset)
 
 
 def cmd_spectrum(args):
@@ -243,6 +251,18 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--no-reset", action="store_true")
     c.add_argument("--out", help="archivo de salida (.csv o .npz)")
     c.set_defaults(func=cmd_capture)
+
+    lv = sub.add_parser("live", help="vista en vivo del stream CSV por serie")
+    lv.add_argument("--port"); lv.add_argument("--baud", type=int, default=115200)
+    lv.add_argument("--menu", help="opción(es) de menú, p.ej. '5' o '9\\n2'")
+    lv.add_argument("--cols", default=None,
+                    help="columnas a graficar, separadas por coma (p.ej. 'duty_pct,adc_raw'); "
+                         "por defecto, todas las del encabezado recibido")
+    lv.add_argument("--window", type=float, default=20.0, help="ventana visible [s]")
+    lv.add_argument("--save-csv", dest="save_csv", default=None,
+                    help="además, guardar el CSV recibido en este archivo")
+    lv.add_argument("--no-reset", action="store_true")
+    lv.set_defaults(func=cmd_live)
 
     s = sub.add_parser("spectrum", help="FFT / PSD")
     common_in(s)

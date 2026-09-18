@@ -9,6 +9,7 @@ Modos:
   5) Jitter de PWM (medición con osciloscopio)
   6) Muestreo y aliasing (ADC + generador de funciones)
   7) Respuesta al escalón del servo-lazo (requiere realimentación en ADC)
+  8) Vista en vivo (ángulo + ADC), streaming continuo para tools/sisela_signal live
   q) Salir
 
 Durante cualquier modo, escribe 'm' + ENTER para volver al menú.
@@ -19,6 +20,9 @@ Los modos 5–7 se apoyan en el banco (generador + osciloscopio) y en la toolkit
   python -m sisela_signal alias         --file cap.csv --true-f 3000
   python -m sisela_signal characterize  --file step.csv --col v --mode step
   python -m sisela_signal scope --scope --file RigolCH1.csv   # jitter de PWM del modo 5
+
+El modo 8 transmite en continuo (no en bloque) y sirve para vista en vivo:
+  python -m sisela_signal live --port COM5 --menu 8 --cols angle_deg,adc_raw
 """
 
 # =============================================================================
@@ -36,7 +40,7 @@ except ImportError:
 from lib.servo import Servo
 
 try:
-    from siglab import BlockSampler, Stats
+    from siglab import BlockSampler, Stats, stream_csv
     HAVE_SIGLAB = True
 except ImportError:
     HAVE_SIGLAB = False
@@ -84,6 +88,7 @@ def menu_select(timeout_s=8):
     print("5) Jitter de PWM (osciloscopio)")
     print("6) Muestreo y aliasing (ADC + generador)")
     print("7) Respuesta al escalón del servo-lazo")
+    print("8) Vista en vivo (ángulo + ADC) — tools/sisela_signal live")
     print("q) Salir")
     print("="*48)
     print(f"Selecciona opción (timeout {timeout_s}s): ", end="")
@@ -382,6 +387,37 @@ def mode_step_response():
     wait_enter_p5("\nENTER para volver al menú...")
 
 
+def mode_live_view():
+    """Modo 8: transmite continuamente ángulo comandado + lectura ADC como CSV
+    `t_us,angle_deg,adc_raw`, para `tools/sisela_signal live` (vista en tiempo
+    real, sin necesidad de capturar primero). A diferencia de los Modos 5-7
+    (BlockSampler, precisión de muestreo crítica), este modo no mide jitter ni
+    tiempos críticos, así que puede imprimir en vivo sin afectar la medición."""
+    print("\n--- MODO 8: Vista en vivo (ángulo + ADC) ---")
+    if not servo:
+        print("[Error] Servo no inicializado."); return
+    if not HAVE_SIGLAB or not MICROPYTHON:
+        print("[ERROR] Requiere lib/siglab.py y ejecución en placa."); return
+    read_fn, full, vref = _make_adc()
+    print("Barrido lento 0-{}-0 mientras transmite. 'm'+ENTER aborta.".format(ANGLE_MAX))
+    print("En la PC: python -m sisela_signal live --port COMx --menu 8 --cols angle_deg,adc_raw")
+    state = {"angle": ANGLE_MIN, "dir": 1}
+
+    def _read():
+        a = state["angle"]
+        servo.angle(a)
+        raw = read_fn()
+        state["angle"] += state["dir"] * 2
+        if state["angle"] >= ANGLE_MAX:
+            state["angle"], state["dir"] = ANGLE_MAX, -1
+        elif state["angle"] <= ANGLE_MIN:
+            state["angle"], state["dir"] = ANGLE_MIN, 1
+        return (a, raw)
+
+    stream_csv(_read, 20.0, cols=("angle_deg", "adc_raw"), max_samples=0)
+    servo.angle((ANGLE_MIN + ANGLE_MAX) // 2)
+
+
 def wait_enter_p5(msg="ENTER para continuar..."):
     print(msg, end="")
     if not MICROPYTHON:
@@ -428,6 +464,8 @@ def main():
             mode_sampling_alias()
         elif choice == '7':
             mode_step_response()
+        elif choice == '8':
+            mode_live_view()
         elif choice.lower() == 'q':
             print("\n[Salida] Programa terminado.")
             break

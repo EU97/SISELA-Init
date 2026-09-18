@@ -415,6 +415,19 @@ mide la posición real: \textbf{tiempo de subida} (10--90\,\%), \textbf{sobre-os
 1\textsuperscript{er} orden. Es el análogo de laboratorio de la dinámica de un actuador
 FBW y de los requisitos de ancho de banda de los lazos de control de vuelo.
 
+\subsection{Modo 8 — vista en vivo}
+A diferencia de los Modos 5--7 (captura en bloque con \code{BlockSampler}, donde la
+precisión de muestreo es crítica y no conviene interrumpirla con impresiones), el
+Modo 8 transmite en continuo (\code{stream\_csv}/\code{streamCsv}) el ángulo
+comandado y la lectura ADC durante un barrido lento, sin objetivo de medir jitter ni
+tiempos críticos. Sirve para observar en tiempo real, mientras el servo se mueve, con
+la toolkit compartida:
+\begin{lstlisting}[language=bash]
+python -m sisela_signal live --port COM5 --menu 8 --cols angle_deg,adc_raw
+\end{lstlisting}
+Disponible tanto en MicroPython (ambas placas) como en C++ (\code{p5.cpp}), con el
+mismo formato de columnas.
+
 % ============================================================================
 \section{Alternativa de Trabajo en Casa (Multímetro + Simulación)}
 \label{sec:casa}

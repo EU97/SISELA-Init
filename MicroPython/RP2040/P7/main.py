@@ -7,6 +7,7 @@ Modos de la práctica:
   3) Barrido: avanza hasta límite, retrocede, repite
   4) Homing: buscar fin de carrera (si está conectado)
   5) Info del driver: muestra configuración actual
+  6) Registro CSV (jitter de intervalo STEP) — para tools/sisela_signal
 
 Presiona 'm' + ENTER en cualquier modo para regresar al menú.
 
@@ -14,6 +15,11 @@ Presiona 'm' + ENTER en cualquier modo para regresar al menú.
   - Pines: GPxx en lugar de GPIOxx
   - Sin cambios en la lógica de control (compatible)
   - Mismo código de drivers A4988 y ULN2003
+
+El Modo 6 alimenta la toolkit PC `tools/sisela_signal/`:
+  python -m sisela_signal capture --port COM5 --menu 6 --out cap.csv
+  python -m sisela_signal characterize --file cap.csv --col dt_us --mode adc
+  python -m sisela_signal live --port COM5 --menu 6 --cols dt_us
 """
 
 try:
@@ -40,6 +46,8 @@ except ImportError:
         @staticmethod
         def ticks_ms(): return 0
         @staticmethod
+        def ticks_us(): return 0
+        @staticmethod
         def ticks_diff(a, b): return 0
 
     class uselect:
@@ -50,6 +58,12 @@ except ImportError:
                 def register(self, *a): pass
                 def poll(self, t): return []
             return _P()
+
+try:
+    from siglab import Stats
+    HAVE_SIGLAB = True
+except ImportError:
+    HAVE_SIGLAB = False
 
 # Importar drivers según disponibilidad
 try:
@@ -276,6 +290,33 @@ def mode_info(_driver, driver_type: str, endstop=None):
     input("\nPresiona ENTER para regresar al menú...")
 
 
+def mode_csv_log(driver):
+    """Modo 6: registra el intervalo real entre pasos (jitter) como CSV
+    `t_us,dt_us` a RPM constante, para `tools/sisela_signal`."""
+    print("\n[Modo 6] Registro CSV (jitter de intervalo STEP). 'm'+ENTER aborta.")
+    n = 300
+    interval_us = rpm_to_interval_us(DEFAULT_RPM, DEFAULT_STEPS)
+    print("t_us,dt_us")
+    stats = Stats() if HAVE_SIGLAB else None
+    t0 = time.ticks_us()
+    last = t0
+    count = 0
+    for _ in range(n):
+        driver.step(1, interval_us)
+        now = time.ticks_us()
+        dt = time.ticks_diff(now, last)
+        last = now
+        print("{},{}".format(time.ticks_diff(now, t0), dt))
+        if stats is not None:
+            stats.add(dt)
+        count += 1
+        if _readline_nonblocking().lower() == "m":
+            break
+    print("# end n={}".format(count))
+    if stats is not None:
+        print(stats.report("us"))
+
+
 MENU = """
 ==============================
  Práctica 7 — Motores a Pasos (RP2040)
@@ -286,6 +327,7 @@ MENU = """
  3) Barrido (con/sin endstop)
  4) Homing (requiere endstop)
  5) Info del driver
+ 6) Registro CSV (jitter de intervalo STEP)
 ==============================
 """
 
@@ -318,6 +360,8 @@ def main():
                 mode_homing(driver, endstop)
             elif sel == "5":
                 mode_info(driver, DRIVER_TYPE, endstop)
+            elif sel == "6":
+                mode_csv_log(driver)
             else:
                 print("Opción no válida.")
     finally:

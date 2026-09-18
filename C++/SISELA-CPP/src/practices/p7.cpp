@@ -3,11 +3,12 @@
 #include "board_config.h"
 #include "common/utils.h"
 #include "common/landing_gear.h"
+#include "common/siglab.h"
 #include "pins/pins.h"
 
 #if PRACTICE==7
 // P7: Control de Motores a Pasos (A4988 o ULN2003)
-// Modos: 1) Jog, 2) Mover N pasos, 3) Barrido, 4) Homing
+// Modos: 1) Jog, 2) Mover N pasos, 3) Barrido, 4) Homing, 5) Registro CSV (jitter)
 
 static LandingGear stepper;
 static uint8_t mode = 4;  // 1=jog, 2=move N, 3=sweep, 4=homing
@@ -22,6 +23,7 @@ namespace practices {
   void mode_move_n(String cmd);
   void mode_sweep();
   void mode_homing();
+  void mode_csv_log();
 
   // Convertir RPM → intervalo entre pasos (us)
   uint32_t rpm_to_interval_us(int rpm, int steps_per_rev) {
@@ -61,14 +63,15 @@ namespace practices {
     Serial.println("2) Mover N pasos (con RPM)");
     Serial.println("3) Barrido (avanza hasta límite/endstop, retrocede, repite)");
     Serial.println("4) Homing (buscar fin de carrera)");
-    Serial.println("\nEscribe 1, 2, 3 o 4 y ENTER. Default: 4 en 5s");
-    
+    Serial.println("5) Registro CSV (jitter de intervalo STEP)");
+    Serial.println("\nEscribe 1-5 y ENTER. Default: 4 en 5s");
+
     // Esperar input 5 segundos
     uint32_t start = millis();
     while (millis() - start < 5000) {
       if (Serial.available()) {
         char c = Serial.read();
-        if (c >= '1' && c <= '4') {
+        if (c >= '1' && c <= '5') {
           mode = c - '0';
           while (Serial.available()) Serial.read();
           break;
@@ -92,12 +95,18 @@ namespace practices {
         Serial.println("Modo 3: Barrido continuo.");
         Serial.println("'m' para detener y volver al menú.");
         break;
-      case 4: 
+      case 4:
         Serial.println("Modo 4: Homing (buscar fin de carrera).");
         if (PIN_ENDSTOP < 0) {
           Serial.println("ADVERTENCIA: Endstop no configurado. Abortando homing.");
           mode = 1;  // Fallback a jog
         }
+        break;
+      case 5:
+        Serial.println("Modo 5: Registro CSV (jitter de intervalo STEP).");
+        Serial.println("Ejecuta una sola vez y regresa a Jog. Para PC:");
+        Serial.println("  python -m sisela_signal capture --port COMx --menu 5 --out cap.csv");
+        Serial.println("  python -m sisela_signal characterize --file cap.csv --col dt_us --mode adc");
         break;
     }
     Serial.println();
@@ -135,6 +144,9 @@ namespace practices {
     } else if (mode == 4) {
       mode_homing();
       mode = 1;  // Después de homing, pasar a jog
+    } else if (mode == 5) {
+      mode_csv_log();
+      mode = 1;  // Después del registro, pasar a jog
     }
   }
   
@@ -256,6 +268,29 @@ namespace practices {
     }
     
     delay(1000);
+    Serial.println("Cambiando a modo Jog...\n");
+  }
+
+  // Modo 5: Registro CSV (jitter de intervalo STEP), para tools/sisela_signal
+  void mode_csv_log() {
+    const int n = 300;
+    uint32_t interval = rpm_to_interval_us(DEFAULT_RPM, STEPS_PER_REV);
+    Serial.println("t_us,dt_us");
+    siglab::Stats st;
+    uint32_t t0 = micros();
+    uint32_t last = t0;
+    int count = 0;
+    for (int i = 0; i < n; i++) {
+      stepper.stepperStep(1, true, interval);
+      uint32_t now = micros();
+      uint32_t dt = now - last;
+      last = now;
+      serialPrintf(Serial, "%lu,%lu\n", (unsigned long)(now - t0), (unsigned long)dt);
+      st.add((double)dt);
+      count++;
+    }
+    serialPrintf(Serial, "# end n=%d\n", count);
+    st.report(Serial, "us");
     Serial.println("Cambiando a modo Jog...\n");
   }
 }

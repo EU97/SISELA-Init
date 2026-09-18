@@ -2,7 +2,8 @@
 
 **Fecha:** 2026-09-10 (Fase 1) · 2026-09-14 (Fase 2, solo P8) · 2026-09-17 (verificación
 mayor: PlatformIO real, manuales p6–p8, alternativa de trabajo en casa — §6; herramientas
-de recolección/despliegue de datos — §7; revisión de integridad completa — §8)
+de recolección/despliegue de datos — §7; revisión de integridad completa — §8; modos CSV
+nuevos en P6/P7, vista en vivo genérica (`sisela_signal live`) — §9)
 **Alcance:** auditoría de consistencia entre los **manuales** (`~/Descargas/manuales/Manuales/pN.pdf`,
 generados con LaTeX/MiKTeX, sin fuentes `.tex` en el repo) y las **cuatro implementaciones**:
 MicroPython/ESP32, MicroPython/RP2040, C++/PlatformIO (ESP32) y C++/PlatformIO (RP2040).
@@ -257,6 +258,8 @@ Estado: ✅ corregido · ⏳ pendiente (fase indicada) · 📝 solo se documenta
 | D-37 | 🟡 | `docs/manuales/p7.tex` §"Caso 3" | El manual recreado en la verificación mayor (§6) describía en tiempo presente "El firmware recibe una trama hexadecimal (simulando Label 204)..." para ARINC 429 — pero P7 **no tiene ninguna línea de código relacionada con ARINC** (grep vacío). Inconsistencia manual↔firmware introducida al recrear el manual desde el PDF original (que sí lo presentaba así). | 8 | ✅ reencuadrado como "Caso 3 (ejercicio de diseño)" con una nota explícita aclarando que no está implementado en el firmware actual; recompilado sin errores (16 pág., sin cambios en warnings) |
 | D-38 | 🟡 | `REPORTE_FUNCIONES.md` | Dos problemas de staleness: (a) comparativa RP2040 vs ESP32 de P4 todavía decía "MPX5500DP funciona mejor con 5V" como si fuera el sensor actual; (b) la sección de P8 solo documenta los Modos 1–7 (base), sin mención de los Modos 8 (dron) y 9 (análisis de señales) añadidos en la Fase 2 | 8 | ✅ comparativa de P4 corregida a BMP180/I2C; nota añadida en P8 señalando los Modos 8–9 y apuntando a `docs/dron_2212.md`/`docs/analisis_senales.md` |
 | D-39 | 🟡 | `MicroPython/{ESP32,RP2040}/P1`, `P2` | **P1 y P2 tampoco importan fuera de la placa** (mismo patrón que D-11/D-34: `machine`/`utime`/`time.ticks_*` sin *guard*, y en P1/P2 además con instanciación de hardware a nivel de módulo — `led1 = make_led(...)`, `adc = ADC(Pin(...))` — que se ejecuta inmediatamente al importar). | 8 (ampliado a petición explícita: "haz que todo el código funcione") | ✅ el usuario autorizó explícitamente extender la corrección a P1/P2 pese a la regla de congelamiento, dado que el *guard* es puramente aditivo (try/except alrededor del import; en la placa real nunca se activa la rama de *fallback*, cero cambio de comportamiento). Aplicado el mismo patrón de *polyfills* que en D-11/D-34 a los 4 archivos (`ESP32/P1`, `RP2040/P1`, `ESP32/P2`, `RP2040/P2`). Las **16 combinaciones** (P1–P8 × ESP32/RP2040) importan limpio en PC. |
+| D-40 | 🔴 | `MicroPython/ESP32/P7/lib/{stepper_a4988,stepper_uln2003}.py` | **Bug crítico, nunca antes detectado**: `main.py` de P7 (ambas placas) llama a los constructores de los drivers con *kwargs* `step_pin=`/`dir_pin=`/`enable_pin=` y usa el método unificado `driver.step(steps, interval_us)` — pero los archivos driver de **ESP32** usaban nombres de parámetro distintos (`pin_step`/`pin_dir`/`pin_en` en A4988; 4 args posicionales en ULN2003) y **no tenían el método `step()` en absoluto**. Con `DRIVER_TYPE="A4988"` (el *default* de `main.py`) esto significa que **P7 en ESP32 nunca pudo inicializar el driver** (`TypeError` en `_build_driver()`) — la práctica de motores a pasos, en su configuración por defecto, estaba rota de origen en ESP32. RP2040 no tenía este problema (sus archivos ya usaban los nombres/API correctos). | 9 (herramientas de datos) | ✅ los 2 archivos de `ESP32/P7/lib/` reemplazados por la variante RP2040 (API ya correcta, más completa: `step()`, `step_once()`, `disable()`). Verificado extremo a extremo: ambos drivers instancian y ejecutan `step()`/`enable()`/`disable()`/`release()` sin error. |
+| D-41 | 🟡 | `C++/.../src/practices/p8.cpp` (Modo 9→2) | El encabezado CSV del muestreo multicanal decía `t_us,alt,spd,att,lux` en C++ pero `t_us,alt_m,spd_kt,att_deg,lux` en MicroPython (mismo modo, mismos datos) — un comando `sisela_signal --col alt_m` documentado en el manual habría fallado contra la salida C++. | 9 | ✅ nombres de columna alineados a los de MicroPython; verificado que ya no hay ninguna otra discrepancia de nombres de columna entre las dos implementaciones (P2–P8 comparados exhaustivamente). |
 | D-26 | 🔴 | `C++/.../include/pins/pins_types.h`, `pins_esp32.h`, `pins_rp2040.h` | **Todo el C++ nunca había compilado con PlatformIO real** (solo se había verificado con un *stub* de `g++`, ver §5). `Pins`/`StepperA4988Pins`/`StepperULN2003Pins` tienen inicializadores de miembro por defecto, lo que en `-std=gnu++11` (el estándar por defecto de los cores Arduino ESP32/RP2040) les quita la condición de *agregado* → las tablas de pines de **las 8 prácticas** fallaban con `error: could not convert ... to 'Pins'`. | 4 (verificación mayor) | ✅ `-std=gnu++17` en `platformio.ini` |
 | D-27 | 🟠 | `C++/.../src/practices/p1.cpp`, `p7.cpp` | `loop()` llama a `mode_blink/mode_chaser/mode_monitor/mode_integrated` (p1) y `mode_jog/mode_move_n/mode_sweep/mode_homing` (p7) **antes** de su definición en el archivo, sin *forward declaration* → `error: 'mode_X' was not declared in this scope`. Nunca se había compilado realmente. | 4 | ✅ *forward declarations* añadidas |
 | D-28 | 🔴 | `C++/.../src/practices/p4.cpp` | Las variables `B1`/`B2` (coeficientes de calibración BMP180) colisionan con las macros `B0..B11111111` de `binary.h` del core Arduino (`#define B1 1`) → `error: expected unqualified-id before numeric constant` en la propia declaración. Nunca se había compilado realmente. | 4 | ✅ renombradas a `Bc1`/`Bc2` |
@@ -608,3 +611,96 @@ landing_gear,stepper_a4988,stepper_uln2003}.py}`,
 `MicroPython/RP2040/P7/PINES.md`, `MicroPython/RP2040/{README.md,SCRIPTS_UTILIDAD.md,
 P5/README.md,P6/{README.md,PINES.md,docs/oscilograma.md}}`, `README.md` (raíz),
 `REPORTE_FUNCIONES.md`, `docs/manuales/p7.tex`.
+
+---
+
+## 9. Herramientas de recolección de datos y vista en vivo (2026-09-17)
+
+A petición del usuario, tras confirmar que P6 y P7 no tenían ningún modo que emitiera
+CSV (a diferencia de P4/P5/P8), y que ninguna práctica salvo P2/P4 ofrecía una
+**vista en vivo** real (todo lo demás era "capturar bloque → analizar después"), se
+construyó lo siguiente — con el requisito explícito de que los scripts fueran
+**sencillos, compartidos entre prácticas, y verificados contra las salidas tanto de
+MicroPython como de C++**.
+
+### 9.1 Modo CSV nuevo en P6 y P7 (firmware)
+- **P6 — Modo 5 "Registro CSV"**: barrido automático 0→100→0 muestreando el ADC (si
+  hay potenciómetro) a 50 Hz, emite `t_us,duty_pct,adc_raw`. Implementado en
+  `MicroPython/{ESP32,RP2040}/P6/main.py` (usando `lib/siglab.py`, copiado a P6 por
+  primera vez — antes no lo tenía) y en `C++/.../p6.cpp` (usando `common/siglab.h`).
+- **P7 — Modo 6 "Registro CSV (jitter de intervalo STEP)"**: ejecuta 300 pasos a RPM
+  constante midiendo con `ticks_us`/`micros()` el intervalo real entre cada uno, emite
+  `t_us,dt_us`. Implementado en `MicroPython/{ESP32,RP2040}/P7/main.py` y en
+  `C++/.../p7.cpp` (Modo 5 en la numeración C++, que ya tenía menos modos).
+- Ambos verificados de extremo a extremo generando CSV real con datos simulados y
+  confirmando que `sisela_signal characterize`/`spectrum` los procesa sin error.
+- Al implementar P7 se encontró **D-40** (🔴 crítico): los drivers de stepper de
+  **ESP32/P7** tenían una API incompatible con lo que `main.py` ya asumía —
+  `DRIVER_TYPE="A4988"` (el valor por defecto) **nunca pudo inicializar** en ESP32.
+  Corregido reemplazando los 2 archivos por la variante RP2040 (ya correcta).
+
+### 9.2 Modo de vista en vivo nuevo en P5 (firmware)
+Los Modos 5–7 de P5 usan `BlockSampler` (captura en bloque a Fs fija, precisión de
+muestreo crítica para medir jitter/aliasing/escalón) — imprimir CSV *durante* esa
+captura arriesgaría introducir jitter de impresión en la propia medición que se está
+intentando hacer. En vez de modificar esos modos, se añadió un **Modo 8 nuevo y
+separado, "Vista en vivo"**, que transmite en continuo (`stream_csv`/`streamCsv`)
+ángulo comandado + lectura ADC durante un barrido lento — sin objetivo de medir
+tiempos críticos, así que puede imprimir en vivo sin riesgo. Implementado en
+`MicroPython/{ESP32,RP2040}/P5/main.py` y en `C++/.../p5.cpp`.
+
+### 9.3 Subcomando `live` — vista en vivo genérica y compartida
+En vez de escribir una GUI nueva por práctica (el patrón que ya había demostrado ser
+frágil: ver D-20, `live_plot.py` de P5 con el sensor equivocado), se añadió **un solo
+subcomando genérico** a la toolkit compartida: `tools/sisela_signal/live.py` +
+`python -m sisela_signal live`. No depende de qué lenguaje generó el firmware — solo
+del formato CSV `t_us,col1[,col2,...]` por el puerto serie, que ya es idéntico entre
+MicroPython y C++ (ver §9.4). Funciona con **cualquier** práctica/modo que emita ese
+formato: P4 (modos 6/7), P5 (modo 8, y en principio 6 si se acepta el riesgo de
+jitter), P6 (modo 5), P7 (modo 6), P8 (modo 9→2).
+```bash
+python -m sisela_signal live --port COM5 --menu 5 --cols duty_pct,adc_raw   # P6
+python -m sisela_signal live --port COM5 --menu 6 --cols dt_us              # P7
+python -m sisela_signal live --port COM5 --menu 8 --cols angle_deg,adc_raw  # P5
+```
+4 pruebas nuevas en `tools/sisela_signal/tests/test_live.py`: parseo de filas CSV
+(`_parse_row`), detección de encabezado con un puerto serie simulado
+(`_open_and_arm`, incluido el caso de *timeout* sin encabezado), y una prueba
+**de extremo a extremo** que simula una sesión completa (conectar → detectar
+encabezado → recibir 20 filas → graficar con un `FuncAnimation` de prueba que corre
+síncrono, sin necesitar una ventana real → guardar el CSV recibido) y confirma que el
+archivo guardado tiene el contenido correcto. Suite completa: **42/42 en verde**
+(38 previas + 4 nuevas).
+
+### 9.4 Verificación de compatibilidad MicroPython ↔ C++
+Se comparó, uno por uno, el encabezado CSV exacto que emite cada modo en las 4
+implementaciones (MicroPython ESP32/RP2040, C++ ESP32/RP2040) de P2 a P8. Todos
+coinciden exactamente, con una sola excepción real encontrada y corregida
+(**D-41**: `alt,spd,att,lux` en C++ vs `alt_m,spd_kt,att_deg,lux` en MicroPython,
+mismo modo de P8) y una diferencia legítima sin corregir (P4 Modo 7: C++ usa
+`t_ms` — de verdad basado en `millis()` — y MicroPython usa `t_us` — de verdad
+basado en `ticks_us()` —, cada uno correctamente etiquetado con la unidad real que
+usa; `dataio.py` ya interpreta ambos sufijos correctamente desde D-32).
+
+### 9.5 Verificación final
+```
+py_compile (MicroPython, las 8 prácticas × 2 plataformas):        OK
+import main.py (16 combinaciones):                                16/16 OK
+pytest tools/sisela_signal (incl. 4 pruebas nuevas de `live`):     42/42
+C++ pio run -e {esp32dev,pico} × 8 prácticas (+ variante ULN2003): 16/16 OK
+Enlaces internos en *.md:                                          0 rotos
+Encabezados CSV MicroPython ↔ C++ (P2–P8, comparación exhaustiva): 1 discrepancia
+                                                                    encontrada y
+                                                                    corregida (D-41)
+```
+
+**Archivos nuevos/tocados en esta pasada:**
+`tools/sisela_signal/live.py` (nuevo), `tools/sisela_signal/tests/test_live.py`
+(nuevo), `tools/sisela_signal/cli.py`, `tools/sisela_signal/README.md`,
+`MicroPython/{ESP32,RP2040}/{P6,P7}/main.py`,
+`MicroPython/{ESP32,RP2040}/{P6,P7}/lib/siglab.py` (nuevo en P6/P7),
+`MicroPython/ESP32/P7/lib/{stepper_a4988,stepper_uln2003}.py` (reemplazados, D-40),
+`MicroPython/{ESP32,RP2040}/P5/main.py`,
+`MicroPython/{ESP32,RP2040}/{P5,P6,P7}/README.md`,
+`C++/.../src/practices/{p5,p6,p7,p8}.cpp`,
+`docs/manuales/{p5,p6,p7}.tex`.
